@@ -77,8 +77,8 @@
   /* Excel has no zebra stripe — pure white. Hover only for navigation help. */
   table.zonghe tbody tr:hover td { background: #fff7d6; }
 
-  /* Negative values get red */
-  td.neg { color: var(--neg-text); }
+  /* Negative values get red — qualify selector to beat .zonghe td { color } (0,1,2) */
+  table.zonghe td.neg { color: var(--neg-text); }
   /* Column-specific widths approximating Excel col widths */
   /* (Excel char-units × 7px ≈ pixels, kept proportional) */
   .col-A { min-width: 80px; }
