@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .db import connect, init_db
 from .refresh import refresh
+from .dashboard import build_dashboard
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s | %(message)s")
@@ -98,6 +99,25 @@ def api_timeseries() -> dict[str, Any]:
             "SELECT * FROM daily_summary ORDER BY date"
         )]
     return {"rows": rows}
+
+
+@app.get("/api/dashboard")
+def api_dashboard(date: str | None = Query(default=None)) -> dict[str, Any]:
+    """The 6-row 柴柴 法人部位彙整 view for a given data date."""
+    with connect() as con:
+        if not date:
+            row = con.execute("SELECT MAX(date) FROM fut_legal").fetchone()
+            date = row[0] if row else None
+        if not date:
+            raise HTTPException(404, "No data in DB. Run /api/refresh first.")
+    payload = build_dashboard(date)
+    # also include last_refresh for display
+    with connect() as con:
+        last = con.execute(
+            "SELECT * FROM refresh_log ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        payload["last_refresh"] = dict(last) if last else None
+    return payload
 
 
 @app.get("/api/dates")

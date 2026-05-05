@@ -2,19 +2,20 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<title>法人OP日夜盤數據</title>
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<title>柴柴 法人部位彙整</title>
 <style>
   :root {
-    --bg: #0f1116;
-    --panel: #1a1d27;
-    --panel2: #232735;
-    --fg: #e6e9ef;
-    --muted: #8a93a6;
-    --accent: #5fb3ff;
-    --pos: #4ade80;
-    --neg: #f87171;
-    --border: #2c3142;
+    --bg: #f8f6f0;
+    --panel: #ffffff;
+    --header-bg: #f1c97a;
+    --header-bg2: #d8eaf6;
+    --header-text: #5a3b1a;
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --pos-bg: #e8f3e0;
+    --neg-text: #d92929;
+    --border: #c9c9c9;
+    --pink: #f7d7d7;
   }
   * { box-sizing: border-box; }
   body {
@@ -22,135 +23,147 @@
     background: var(--bg);
     color: var(--fg);
     font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: 14px;
   }
   header {
     background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    padding: 10px 18px;
+    padding: 14px 20px;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 14px;
     flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
   }
-  header h1 { margin: 0; font-size: 18px; font-weight: 600; }
-  header .meta { color: var(--muted); }
+  header h1 { margin: 0; font-size: 17px; font-weight: 600; }
+  header .meta { color: var(--muted); font-size: 13px; }
   button {
-    background: var(--accent); color: #0b1320; border: 0;
-    padding: 7px 14px; border-radius: 5px; cursor: pointer; font-weight: 600;
+    background: #2c5aa0; color: #fff; border: 0;
+    padding: 7px 14px; border-radius: 4px; cursor: pointer;
+    font-weight: 600; font-size: 13px;
   }
-  button:disabled { opacity: 0.55; cursor: not-allowed; }
-  button.secondary { background: var(--panel2); color: var(--fg); border: 1px solid var(--border); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
   input[type=date] {
-    background: var(--panel2); color: var(--fg); border: 1px solid var(--border);
-    padding: 5px 8px; border-radius: 4px;
+    background: #fff; border: 1px solid var(--border);
+    padding: 5px 8px; border-radius: 3px;
+    font-family: inherit;
   }
-  main { padding: 16px; display: grid; gap: 16px; }
-  section.card {
+  main { padding: 18px; max-width: 1200px; margin: 0 auto; }
+  table.summary {
+    border-collapse: collapse;
+    width: 100%;
     background: var(--panel);
+    border: 2px solid var(--border);
+  }
+  table.summary th, table.summary td {
     border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-  }
-  .card h2 {
-    margin: 0; padding: 10px 14px;
-    font-size: 14px; font-weight: 600;
-    background: var(--panel2);
-    border-bottom: 1px solid var(--border);
-  }
-  .card .body { padding: 6px 14px 14px; overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th, td {
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--border);
+    padding: 6px 10px;
     text-align: right;
     white-space: nowrap;
+    font-size: 14px;
   }
-  th { background: var(--panel2); font-weight: 600; }
-  th:first-child, td:first-child,
-  th[data-text], td[data-text] { text-align: left; }
-  td.pos { color: var(--pos); }
-  td.neg { color: var(--neg); }
-  .row-group-divider { border-top: 2px solid var(--border); }
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } }
-  #status { color: var(--muted); }
-  #status.ok { color: var(--pos); }
-  #status.err { color: var(--neg); }
-  #chart { width: 100%; min-height: 480px; }
-  .kpi-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 10px;
+  table.summary th.label, table.summary td.label {
+    text-align: center;
+    font-weight: 600;
   }
-  .kpi {
-    background: var(--panel2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 5px;
+  table.summary thead th {
+    background: var(--header-bg2);
+    color: #1a3a5e;
+    font-weight: 600;
   }
-  .kpi .label { color: var(--muted); font-size: 11px; }
-  .kpi .value { font-size: 17px; font-weight: 600; }
+  table.summary thead th.title {
+    background: var(--header-bg);
+    color: var(--header-text);
+    font-size: 17px;
+    text-align: center;
+    padding: 10px;
+  }
+  table.summary thead th.section {
+    background: #ffffff;
+    font-weight: 700;
+    border-bottom: 2px solid var(--border);
+  }
+  table.summary tbody td.product {
+    background: var(--header-bg2);
+    color: var(--header-text);
+    font-weight: 600;
+    text-align: center;
+  }
+  table.summary tbody td.put-row {
+    background: var(--pink);
+  }
+  table.summary tbody td.day-section {
+    background: var(--pos-bg);
+  }
+  td.neg { color: var(--neg-text); }
+  td.empty { background: #fff; color: var(--muted); }
+  .preopen-col {
+    background: #fff;
+    border-left: 2px solid var(--border) !important;
+    padding-left: 14px !important;
+  }
+  .for-corner {
+    background: var(--header-bg);
+    color: var(--header-text);
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.6;
+    padding: 14px 8px !important;
+  }
+  #status { color: var(--muted); font-size: 12px; margin-left: auto; }
+  #status.ok { color: #1a7a3a; }
+  #status.err { color: var(--neg-text); }
 </style>
 </head>
 <body>
+
 <header>
-  <h1>法人OP日夜盤數據</h1>
-  <div class="meta">
-    日期 <input type="date" id="dateInput">
-    <button id="btnLoad" class="secondary">載入</button>
-  </div>
-  <div class="meta">
-    抓資料：
-    <input type="date" id="refreshDate">
-    <button id="btnRefresh">Refresh</button>
-  </div>
-  <div class="meta" id="status">—</div>
+  <h1>柴柴 — 期交所法人部位彙整</h1>
+  <span class="meta">資料日期</span>
+  <input type="date" id="dataDate">
+  <button id="btnLoad">載入</button>
+  <span class="meta">|  抓資料</span>
+  <input type="date" id="refreshDate">
+  <button id="btnRefresh">Refresh</button>
+  <div id="status">—</div>
 </header>
 
 <main>
+  <table class="summary" id="mainTable">
+    <thead>
+      <tr>
+        <th rowspan="3" class="for-corner" id="forCell">For<br>—<br>開盤前看</th>
+        <th colspan="8" class="title">柴柴 — 期交所法人部位彙整</th>
+        <th colspan="2" class="title" style="background:transparent;border:0"></th>
+      </tr>
+      <tr>
+        <th colspan="5" class="section" id="dayHeader">— 日盤</th>
+        <th colspan="2" class="section" id="nightHeader">— 夜盤</th>
+        <th class="preopen-col">開盤前部位</th>
+        <th class="preopen-col">開盤前多空</th>
+      </tr>
+      <tr>
+        <th>口數</th>
+        <th>成本</th>
+        <th>收盤價</th>
+        <th>淨部位</th>
+        <th>成本</th>
+        <th>口數</th>
+        <th>成本</th>
+        <th class="preopen-col">&nbsp;</th>
+        <th class="preopen-col">&nbsp;</th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">(載入中…)</td></tr>
+    </tbody>
+  </table>
 
-<section class="card">
-  <h2>① 開盤前重點 (綜合整理)</h2>
-  <div class="body" id="kpiBody">
-    <div class="kpi-grid" id="kpiGrid"></div>
-  </div>
-</section>
-
-<section class="card">
-  <h2>② 綜合整理時序圖 (歷史)</h2>
-  <div class="body"><div id="chart"></div></div>
-</section>
-
-<div class="grid-2">
-  <section class="card">
-    <h2>③ 三大法人選擇權 — 日盤 (臺指選擇權部分;含未平倉)</h2>
-    <div class="body" id="opDayBody"></div>
-  </section>
-  <section class="card">
-    <h2>③' 三大法人選擇權 — 夜盤 (臺指選擇權)</h2>
-    <div class="body" id="opNightBody"></div>
-  </section>
-</div>
-
-<div class="grid-2">
-  <section class="card">
-    <h2>④ 三大法人期貨 — 日盤</h2>
-    <div class="body" id="futDayBody"></div>
-  </section>
-  <section class="card">
-    <h2>④' 三大法人期貨 — 夜盤</h2>
-    <div class="body" id="futNightBody"></div>
-  </section>
-</div>
-
-<section class="card">
-  <h2>⑤ 台指期 TX 各到期月</h2>
-  <div class="body" id="futPriceBody"></div>
-</section>
-
-<section class="card">
-  <h2>⑥ 信用交易 (上市/上櫃)</h2>
-  <div class="body" id="creditBody"></div>
-</section>
-
+  <p style="color:var(--muted);font-size:12px;margin-top:14px;line-height:1.6">
+    <b>欄位說明：</b>「日盤口數」「淨部位」「夜盤口數」聚合三大法人中的<b>外資 + 自營商</b>（排除投信，沿用輝哥 Excel 慣例）。
+    期貨類「成本」單位為點數；股票期貨「成本」單位為股價；選擇權「成本」單位為權利金點數。
+    「開盤前部位」= 日盤淨部位 + 夜盤口數；「開盤前多空」= CALL 開盤前 − PUT 開盤前。
+    台指期口數含小台/微台折算（÷4 / ÷20）；電子期含小電 ÷8；金融期含小金 ÷4。
+  </p>
 </main>
 
 <script src="/static/app.js"></script>
