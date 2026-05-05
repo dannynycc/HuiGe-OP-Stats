@@ -116,7 +116,7 @@
   table.summary th.preopen-col,
   table.summary td.preopen-col { background: #ffffff; }
 
-  /* 融資餘額 panel — 主表下方獨立小字面板，上下排列、寬度 fit content */
+  /* 融資餘額 panel — 用 grid 讓 label / 數字 / 單位 三欄垂直對齊 */
   .margin-panel {
     margin: 14px 0 0;
     padding: 8px 14px;
@@ -125,21 +125,27 @@
     border-radius: 4px;
     font-size: 18px;
     color: var(--fg);
-    display: inline-flex;
-    flex-direction: column;     /* 上下排列 */
-    gap: 4px;
+    display: inline-grid;
+    grid-template-columns: auto auto auto;
+    column-gap: 12px;
+    row-gap: 4px;
+    align-items: baseline;
   }
   .margin-panel .m-title {
+    grid-column: 1 / -1;
     font-weight: normal;
     border-bottom: 1px solid var(--border-thin);
     padding-bottom: 4px;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     white-space: nowrap;
   }
-  .margin-panel .m-row { white-space: nowrap; }
-  .margin-panel .m-label { color: var(--muted); margin-right: 8px; font-size: 16px; }
-  .margin-panel .m-value { font-weight: 600; }
-  .margin-panel .m-unit { color: var(--muted); font-size: 15px; margin-left: 4px; }
+  .margin-panel .m-label { color: var(--fg); font-size: 18px; }
+  .margin-panel .m-value {
+    font-weight: 600;
+    text-align: right;
+    font-variant-numeric: tabular-nums;   /* 等寬數字, 上下對齊 */
+  }
+  .margin-panel .m-unit { color: var(--fg); font-size: 18px; }
 
   /* "For YYYY/MM/DD(週) 開盤前看" — Excel A237 橘黃 #FABC00.
      Selector specificity must beat `table.summary thead th` (=0,1,2) so we
@@ -211,16 +217,12 @@
   <!-- 信用交易補充資訊 — 獨立 panel，標日期 follow Excel R190「115年MM月DD日 信用交易統計」 -->
   <div class="margin-panel" id="marginPanel">
     <div class="m-title" id="marginTitle">— 信用交易統計</div>
-    <div class="m-row">
-      <span class="m-label">上市融資餘額</span>
-      <span class="m-value" id="twseMarginAmt">—</span>
-      <span class="m-unit">億元</span>
-    </div>
-    <div class="m-row">
-      <span class="m-label">上櫃融資餘額</span>
-      <span class="m-value" id="tpexMarginAmt">—</span>
-      <span class="m-unit">億元</span>
-    </div>
+    <span class="m-label">上市融資餘額</span>
+    <span class="m-value" id="twseMarginAmt">—</span>
+    <span class="m-unit">億元</span>
+    <span class="m-label">上櫃融資餘額</span>
+    <span class="m-value" id="tpexMarginAmt">—</span>
+    <span class="m-unit">億元</span>
   </div>
 
   <p style="color:var(--muted);font-size:13px;margin-top:14px;line-height:1.6;font-family:-apple-system,'Segoe UI','Microsoft JhengHei',sans-serif">
