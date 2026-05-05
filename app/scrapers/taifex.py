@@ -79,7 +79,15 @@ def _parse_legal_table(html: str, expect_oi: bool) -> list[dict]:
     expect_oi = True for day session (has 未平倉餘額 columns).
     Returns flat rows; OP: row per (product, callput, role); FUT: row per (product, role).
     """
-    df = pd.read_html(StringIO(html), flavor="lxml")[0]
+    try:
+        dfs = pd.read_html(StringIO(html), flavor="lxml")
+    except ValueError:
+        return []  # no table — future date / holiday / empty session
+    if not dfs:
+        return []
+    df = dfs[0]
+    if len(df) == 0 or len(df.columns) < 4:
+        return []
     # multiindex cols → positional access
     # OP columns layout:
     #   day:   [0]序號 [1]商品名稱 [2]權別 [3]身份別  [4-9] 交易口數買方/賣方/差額 ×{口數,金額}  [10-15] 未平倉×6
@@ -127,21 +135,51 @@ def _parse_legal_table(html: str, expect_oi: bool) -> list[dict]:
     return rows
 
 
+def _next_business_day(query_date_slash: str) -> str:
+    """'2026/04/14' -> '2026/04/15' (skip weekends)."""
+    import datetime as dt
+    y, m, d = (int(x) for x in query_date_slash.split("/"))
+    nxt = dt.date(y, m, d) + dt.timedelta(days=1)
+    while nxt.weekday() >= 5:
+        nxt += dt.timedelta(days=1)
+    return f"{nxt.year:04d}/{nxt.month:02d}/{nxt.day:02d}"
+
+
 def fetch_op(query_date: str, daynight: str) -> dict[str, Any]:
-    """daynight: 'day' or 'night'. query_date: 'YYYY/MM/DD'."""
+    """daynight: 'day' or 'night'.
+
+    NB: TAIFEX night endpoint uses *session-end date* as the label. So when the
+    caller wants the "T 日夜盤" (T 15:00 ~ T+1 05:00) — which matches the local
+    convention (柴柴 / 輝哥 Excel labels it 「T 日夜盤」) — we POST queryDate=T+1
+    but record the session against T.
+    """
     path = "callsAndPutsDate" if daynight == "day" else "callsAndPutsDateAh"
-    html = _post_html(path, query_date)
+    api_date = query_date if daynight == "day" else _next_business_day(query_date)
+    html = _post_html(path, api_date)
     actual = _extract_response_date(html)
     rows = _parse_legal_table(html, expect_oi=(daynight == "day"))
-    return {"actual_date": actual, "rows": rows, "endpoint": path, "daynight": daynight}
+    return {
+        "actual_date": actual,           # what TAIFEX labels (= T+1 for night)
+        "session_date": query_date.replace("/", "-"),  # local convention (= T)
+        "rows": rows,
+        "endpoint": path,
+        "daynight": daynight,
+    }
 
 
 def fetch_fut(query_date: str, daynight: str) -> dict[str, Any]:
     path = "futContractsDate" if daynight == "day" else "futContractsDateAh"
-    html = _post_html(path, query_date)
+    api_date = query_date if daynight == "day" else _next_business_day(query_date)
+    html = _post_html(path, api_date)
     actual = _extract_response_date(html)
     rows = _parse_legal_table(html, expect_oi=(daynight == "day"))
-    return {"actual_date": actual, "rows": rows, "endpoint": path, "daynight": daynight}
+    return {
+        "actual_date": actual,
+        "session_date": query_date.replace("/", "-"),
+        "rows": rows,
+        "endpoint": path,
+        "daynight": daynight,
+    }
 
 
 def fetch_fut_price() -> dict[str, Any]:

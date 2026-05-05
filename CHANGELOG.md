@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.4] - 2026-05-05 18:39
+
+### Fixed (重大: 夜盤資料 shift 1 天)
+- **TAIFEX night endpoint 是用「session 結束日」(T+1) 當 queryDate，不是開始日 (T)**。
+  之前抓「T 日夜盤」用 `queryDate=T` 實際拿到的是「T-1 日夜盤」(T-1 15:00 ~ T 05:00)，
+  整個夜盤資料 **shift 一天**。用戶從 `4_15` sheet (freeze 純數字) 對照才看出來。
+  - 修法：`fetch_op` / `fetch_fut` 對 night session 內部把 queryDate 換成 T+1
+    (skip weekends)，但 `session_date` 仍是 T，DB 寫入按 T 命名，符合柴柴/輝哥 label。
+  - 驗證：4/14 night 臺股期貨 自營商 net_lots=31, 外資=-296 — 1:1 match Excel `4_15` R133/R135。
+  - 教訓：之前比對 1201 .xlsm 的 live mirror sheet `2夜盤OP` 抓對到 queryDate=4/16
+    (因為那 mirror 本身是 default queryDate=今天 抓出來的 cached) — 同一條 path 不算驗證。
+- 清掉 DB 所有 daynight='night' 舊資料 (date 都標錯) 重新 backfill。
+- `_parse_legal_table` 對空 response (future date / holiday / no session) graceful 回 []，
+  不再 IndexError 把整個 refresh 拖垮。5/5 night 因為 5/6 是未來日無資料，
+  4/30 night 因為 5/1 是勞動節 holiday，現在都會 silent skip。
+
 ## [v0.3.1] - 2026-05-05 18:30
 
 ### Fixed
