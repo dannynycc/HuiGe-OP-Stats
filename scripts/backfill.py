@@ -31,13 +31,16 @@ def main() -> None:
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--from", dest="start", help="YYYY-MM-DD start")
     g.add_argument("--dates", help="Comma-separated explicit YYYY-MM-DD list")
+    g.add_argument("--dates-file", help="File with one YYYY-MM-DD per line")
     p.add_argument("--to", default="today", help="YYYY-MM-DD end (default: today)")
     p.add_argument("--sleep", type=float, default=0.6,
                    help="Seconds to sleep between dates (rate-limit safety)")
     p.add_argument("--skip-weekends", action="store_true", default=True)
     args = p.parse_args()
 
-    if args.dates:
+    if args.dates_file:
+        dates = [line.strip() for line in pathlib.Path(args.dates_file).read_text().splitlines() if line.strip()]
+    elif args.dates:
         dates = [d.strip() for d in args.dates.split(",") if d.strip()]
     else:
         start = dt.date.fromisoformat(args.start)

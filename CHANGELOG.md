@@ -1,5 +1,39 @@
 # Changelog
 
+## [v0.9.2] - 2026-05-05 23:14
+
+### Fixed (用戶抓到 refresh button 沒生效)
+- **JavaScript timezone bug**：`Date.toISOString().slice(0,10)` 在 UTC+8 (台北) 會
+  把本地午夜倒回前一天。前端 `doRefresh` 算 dataDate 時受害 — view_date=5/6 算成
+  data_date=5/4 而不是 5/5，server 收到的 target_date 永遠少一天。
+  - 修法：改用 `getFullYear()` / `getMonth()` / `getDate()` 從本地分量組字串。
+  - User 23:09 按 refresh 跑去 backfill 5/4 而 5/5 的 daily_summary 永遠沒被
+    update — 5/5 信用統計欄一直顯示「—」的根因。
+- **誣賴用戶事件**：我之前看 refresh_log 只看 `target_date='2026-05-05'` 的 entry
+  (3 個)，沒看到 23:00+ 的，就歸因「endpoint 還沒釋出」。實際上 user 真的有按，
+  只是 timezone bug 讓 entry 寫到 target_date='2026-05-04'。應該先驗證 client
+  side 行為再下結論。
+
+### Changed
+- 微台條件邏輯（per user "在還沒有微台的時代就拿掉不計入"）
+  - `app/dashboard.py` 加 `has_micro = date >= '2022-03-28'`，view 早於微台上市日
+    時，「台指期」公式不含「微型臺指期貨」項。
+
+### Added (進行中, 此 commit 含 scaffold)
+- `app/scrapers/finmind.py` — FinMind 第三方 source scraper（2020+ 三大法人 OP /
+  期貨 / 台指期 OHLC 含日夜盤）。
+- `scripts/backfill_finmind.py` — bulk-fetch FinMind 整段歷史寫進 DB.
+- `scripts/backfill.py` 加 `--dates-file` 支援。
+
+### Notes — 第三方 source 限制 (FinMind free tier)
+- OP/FUT 法人**沒夜盤分離** — historical 夜盤欄位空白
+- 期貨主商品 (TX/MTX/TE/TF) 有，**子商品 (微台/小電/小金) 跟個股期沒**
+- TX 各到期月 OHLC ✓ 含日夜盤分離 (`trading_session=position/after_market`)
+
+### 仍跑中 (不在本次 commit, 結果 v0.9.x 後續)
+- 2023/05/05 ~ 2024/12/31 TAIFEX 直抓 backfill (PID 68132)
+- 2020/02 ~ 2023/05/04 FinMind backfill (PID 15076)
+
 ## [v0.9.1] - 2026-05-05 22:08
 
 ### Fixed (用戶抓到「落單 row」)

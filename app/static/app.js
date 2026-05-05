@@ -197,7 +197,13 @@ async function doRefresh() {
     if (viewDate) {
       const d = new Date(viewDate + "T00:00:00");
       do { d.setDate(d.getDate() - 1); } while (d.getDay() === 0 || d.getDay() === 6);
-      dataDate = d.toISOString().slice(0, 10);
+      // BUG-fix: Date.toISOString() uses UTC. In TZ ahead of UTC (e.g. UTC+8
+      // 台北), local-midnight serializes back to the *previous* day. Build the
+      // date string from local components instead.
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      dataDate = `${yyyy}-${mm}-${dd}`;
     }
     const url = dataDate ? `/api/refresh?date=${dataDate}` : "/api/refresh";
     const r = await fetch(url, { method: "POST" }).then(r => r.json());

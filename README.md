@@ -148,10 +148,12 @@ python scripts/backfill.py --dates 2024-03-15,2024-03-18
 
 ## 已驗證資料正確性
 
-### Backfill 涵蓋範圍（v0.7 截止）
-- DB 涵蓋 **2025-01-02 ~ 2026-05-05**，共 **319 個 trading days**
+### Backfill 涵蓋範圍
+- DB 涵蓋 **2025-01-02 ~ 2026-05-05**，共 **319 個 trading days** (v0.7)
+- 持續進行中: 2023/05/05 ~ 2024/12/31 (TAIFEX 直抓, v0.9.2)
+- 持續進行中: 2020/02 ~ 2023/05/04 (FinMind, v0.9.2)
 - 全部從官方 endpoints 真實抓取（非 Excel migration）
-- 408 筆 refresh_log 全 ok=1
+- TAIFEX endpoint cutoff = **2023/05/05**，更早只能用 FinMind (有 sub-product 限制)
 
 ### Sanity check 結果
 - **Row count 一致性**：319 days 全部 op_legal day=30、fut_legal day=73，0 anomaly
