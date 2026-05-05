@@ -178,9 +178,28 @@ def build_dashboard(date: str) -> dict[str, Any]:
         view_date = nxt.isoformat()
 
     tx_close = next((r["close_price"] for r in out_rows if r["product"] == "台指期"), None)
+
+    # 信用交易 — 上市/上櫃融資餘額 (億元), 從 daily_summary 取
+    with connect() as con:
+        ds = con.execute("""
+            SELECT twse_margin_amt_oku, tpex_margin_amt_oku,
+                   twse_mkt_cap_chao, tpex_mkt_cap_chao,
+                   twse_margin_pct, tpex_margin_pct
+            FROM daily_summary WHERE date = ?
+        """, (date,)).fetchone()
+    margin = {
+        "twse_margin_amt_oku": ds["twse_margin_amt_oku"] if ds else None,
+        "tpex_margin_amt_oku": ds["tpex_margin_amt_oku"] if ds else None,
+        "twse_mkt_cap_chao": ds["twse_mkt_cap_chao"] if ds else None,
+        "tpex_mkt_cap_chao": ds["tpex_mkt_cap_chao"] if ds else None,
+        "twse_margin_pct": ds["twse_margin_pct"] if ds else None,
+        "tpex_margin_pct": ds["tpex_margin_pct"] if ds else None,
+    }
+
     return {
         "date": date,
         "view_date": view_date,
         "rows": out_rows,
         "tx_close": tx_close,
+        "margin": margin,
     }

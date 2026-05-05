@@ -182,11 +182,50 @@ def fetch_fut(query_date: str, daynight: str) -> dict[str, Any]:
     }
 
 
-def fetch_fut_price() -> dict[str, Any]:
-    """台指期 TX 各到期月收盤 — only 'today's' values, no date param."""
-    html = _get_html("futDailyMarketExcel")
+def fetch_fut_price(query_date: str | None = None) -> dict[str, Any]:
+    """台指期 TX 各到期月收盤。
+
+    If query_date (YYYY/MM/DD) is given → POST /cht/3/futDailyMarketReport
+        (honors date, supports backfill).
+    Else → GET /cht/3/futDailyMarketExcel (only today, kept as fast path).
+    """
+    if query_date:
+        url = f"{BASE}/futDailyMarketReport"
+        payload = {
+            "queryDate": query_date,
+            "MarketCode": "0",
+            "commodity_id": "TX",
+            "queryType": "1",
+        }
+        headers = {
+            "User-Agent": UA,
+            "Referer": url,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+        last_err: Exception | None = None
+        html = ""
+        for attempt in range(3):
+            try:
+                r = requests.post(url, data=payload, headers=headers, timeout=TIMEOUT)
+                r.raise_for_status()
+                r.encoding = "utf-8"
+                html = r.text
+                break
+            except Exception as e:
+                last_err = e
+                time.sleep(1.5 * (attempt + 1))
+        if not html:
+            raise RuntimeError(f"POST {url} failed: {last_err}")
+    else:
+        html = _get_html("futDailyMarketExcel")
     actual = _extract_response_date(html)
-    df = pd.read_html(StringIO(html), flavor="lxml")[0]
+    try:
+        dfs = pd.read_html(StringIO(html), flavor="lxml")
+    except ValueError:
+        return {"actual_date": actual, "rows": []}
+    if not dfs:
+        return {"actual_date": actual, "rows": []}
+    df = dfs[0]
     # cols: 契約 / 到期月份(週別) / 開盤 / 最高 / 最低 / 最後成交 / 漲跌價 / 漲跌% /
     #       盤後成交量 / 一般成交量 / 合計成交量 / 結算價 / 未沖銷契約量 / 最後最佳買 / 最後最佳賣 /
     #       歷史最高 / 歷史最低

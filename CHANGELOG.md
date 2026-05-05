@@ -1,5 +1,38 @@
 # Changelog
 
+## [v0.8.0] - 2026-05-05 21:31
+
+### Added (兩個用戶要的新功能)
+
+#### 1. 台指期收盤價歷史 backfill — 收盤價欄不再空白
+- 新 endpoint `futDailyMarketReport`（POST + queryDate）支援 backfill 任意歷史
+  日期。原本用的 `futDailyMarketExcel` (GET, only today) 是 v0.1 留下的限制，
+  v0.6 README 還寫成「無法 backfill」。現在解了。
+- `fetch_fut_price(query_date)` 新加可選 date 參數；無 date 時 fallback GET
+  endpoint（保留原快路徑）。
+- `refresh()` 現在會把 `target_slash` 傳給 `fetch_fut_price`，所以 backfill 跑
+  任意日期都能拿到當日 TX 各到期月的收盤/結算/未沖銷。
+- 新 script `scripts/backfill_fut_price.py` — 只跑 fut_price endpoint 補齊
+  歷史，比 full refresh 快 ~3 倍。
+- **319 / 319 trading days 全部跑完**，daily_summary.tx_close 也同步 fill。
+
+#### 2. 主表下方加「上市/上櫃融資餘額」獨立 panel（依用戶要求）
+- 從工作表2 R196 / R201（= '7信用交易' 表 B7 / B12）對齊到 daily_summary 的
+  `twse_margin_amt_oku` / `tpex_margin_amt_oku`（仟元 → 億元 = ÷100,000）。
+- 資料來源：VBA `GetTWSE_TPEX_Final_Correct_Value` 抓的 MI_MARGN（上市）
+  + margin_bal_result（上櫃），早從 v0.1 就在 DB 裡，這次只是 UI 補上呈現。
+- 獨立 div panel 在主表下方，**不混入主表**（per 用戶澄清「不要加進去表格」）。
+- 跟 Excel 4_15 sheet 對齊：4/14 上市 4,149.55 億 ✓ / 上櫃 1,540.95 億 ✓
+
+### Verified
+- 截圖驗證 view_date=2026-04-15 view 跟 Excel 4_15 ground truth 1:1
+- fut_price 319/319 dates ok=1 (refresh_log 全綠)
+- daily_summary.tx_close 從 backfill 寫入後填滿原本因 endpoint 限制留 NULL 的 cells
+
+### UI polish
+- margin panel 改 `display: inline-flex` 寬度 fit content，不再延伸到主表右邊
+  造成右側大量留白（per 用戶反饋「方框右邊太大了」）。padding 左右對稱各 14px。
+
 ## [v0.7.1] - 2026-05-05 21:14
 
 ### Added

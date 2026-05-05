@@ -51,7 +51,7 @@ build_dashboard() 套 Excel 公式 (排除投信，等效大台/電/金、selecc
 | `/cht/3/callsAndPutsDateAh` | POST | ✅ | 三大法人 OP 夜盤 |
 | `/cht/3/futContractsDate` | POST | ✅ | 三大法人期貨日盤 |
 | `/cht/3/futContractsDateAh` | POST | ✅ | 三大法人期貨夜盤 |
-| `/cht/3/futDailyMarketExcel` | GET | ❌（只當天）| 台指期 TX 各月 |
+| `/cht/3/futDailyMarketReport` | POST | ✅ | 台指期 TX 各月（v0.8 起，原用 `futDailyMarketExcel` 只能抓當天）|
 
 POST body: `queryDate=YYYY/MM/DD&commodityId=&MarketCode=0&queryType=1`
 
@@ -134,11 +134,14 @@ python scripts/backfill.py --dates 2024-03-15,2024-03-18
 ```
 
 **Limitations**:
-- `tx_close` (台指期收盤) — `futDailyMarketExcel` endpoint 只回當日，無法 backfill；
-  歷史值要從別處（Excel migration 已覆蓋 5 個月，更早需另尋資料源）。
-- `twse_mkt_cap` (上市總市值) — `homeApi/mkt_cap` 只給最近 5 天；老資料同上，
-  Excel 「綜合整理」已 import 5 個月歷史。
-- 其他 9 個 endpoint 都 honor date param，可以無上限 backfill。
+- `twse_mkt_cap` (上市總市值) — `homeApi/mkt_cap` 只給最近 5 天；老資料從
+  Excel migration「綜合整理」覆蓋 5 個月歷史，更早需另尋資料源。
+- 其他 11 個 endpoint（含 v0.8 起新加的 `futDailyMarketReport`）都 honor date
+  param，可以無上限 backfill。
+
+**Backfill 專用 fast path**：
+- `python scripts/backfill_fut_price.py [--from] [--to] [--only-missing]` —
+  只跑 fut_price endpoint，比 full refresh 快約 3 倍。適合補齊 `tx_close` 欄。
 
 ## 已驗證資料正確性
 

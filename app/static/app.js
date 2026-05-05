@@ -74,8 +74,18 @@ function tdParen(v, classes = "", inlineStyle = "") {
 const tdNum = tdMinus;
 const tdCost = tdMinus;
 
+function fmtOku(v) {
+  if (v == null || isNaN(v)) return "—";
+  return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function render(payload) {
-  const { date, view_date, rows } = payload;
+  const { date, view_date, rows, margin } = payload;
+  // 融資餘額 panel
+  if (margin) {
+    document.getElementById("twseMarginAmt").textContent = fmtOku(margin.twse_margin_amt_oku);
+    document.getElementById("tpexMarginAmt").textContent = fmtOku(margin.tpex_margin_amt_oku);
+  }
 
   // Update headers
   $("#forCell").innerHTML = `For<br>${fmtMD(view_date)}<br>開盤前看`;

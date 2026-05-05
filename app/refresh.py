@@ -46,7 +46,7 @@ def refresh(target_date: str | None = None) -> dict[str, Any]:
     safe("op_night", taifex.fetch_op, target_slash, "night")
     safe("fut_day", taifex.fetch_fut, target_slash, "day")
     safe("fut_night", taifex.fetch_fut, target_slash, "night")
-    safe("fut_price", taifex.fetch_fut_price)
+    safe("fut_price", taifex.fetch_fut_price, target_slash)
     safe("twse_credit", twse.fetch_credit, target_date)
     safe("twse_turnover", twse.fetch_turnover, target_date)
     safe("twse_mkt_cap", twse.fetch_mkt_cap, target_date)
