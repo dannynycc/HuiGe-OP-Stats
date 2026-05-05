@@ -1,5 +1,32 @@
 # Changelog
 
+## [v0.6] - 2026-05-05 19:05
+
+### Fixed (用戶連環抓到的格式錯誤)
+- **負數沒顯示紅色** — `table.summary td { color }` (specificity 0,1,2) 把
+  `td.neg { color }` (0,1,1) 蓋掉了。改成 `table.summary td.neg` 提高
+  specificity (0,1,3)。
+- **「For 開盤前看」cell 底色錯** — 同 specificity 問題，被
+  `table.summary thead th { background }` 蓋掉。改成 `table.summary thead th.for-corner`。
+- **數字格式不分**：所有負數都用 `-N`。實際 Excel numFmt 兩種：
+  - `177` (`#,##0_ ;[Red]\-#,##0\ `) → 口數/成本/收盤價/夜盤 → `-1,749`
+  - `178` (`#,##0_);[Red]\(#,##0\)`) → 淨部位/開盤前部位/開盤前多空 → `(46,947)`
+  分別寫了 `tdMinus` 跟 `tdParen`。
+- **括號破壞數字對齊** — Excel `_)` 表示「正數後面留 `)` 寬度的空白」。
+  在 fmtParen 對 positive 加上 `<span style="visibility:hidden">)</span>`
+  做隱形占位，個位數對齊 negative 的 `)` 前一位數字。
+- **粗體擅自加** — Excel 全部 cells `<b/>` 都不存在 (non-bold)。css 全部
+  `font-weight: normal`。
+- **商品名稱顏色亂改** — Excel font color 全部 theme=1 (= 黑)，我改成棕色。改回。
+- **PUT row 整列粉色 hardcode** — 實際 R244 整列 fillId=0 (透明白)，看起來
+  粉色是 CF 規則 (PUT row dxfId 順序反轉，負→紅 / 正→綠)。移除 hardcode。
+- **「柴柴」標題底色橘黃** — 實際 B237 fill=none (白)，我搞錯。改白。
+- 字體 14px → 16px (Excel sz=12 等效)。標題 21px (sz=16)。
+
+### Added
+- **自動截圖驗證流程**：用 PowerShell + `msedge --headless --screenshot` 在改
+  CSS / JS 後立刻 render 出 PNG 檢查，不再「自己看 CSS 字面以為對」。
+
 ## [v0.5] - 2026-05-05 18:54
 
 ### Changed (依用戶連續反饋全部一次到位)

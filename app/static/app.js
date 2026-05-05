@@ -17,36 +17,62 @@ function fmtMD(iso) {
   return `${m}/${d}(${MD_DAY[day]})`;
 }
 
-function fmtInt(v) {
+// Number formats per Excel sheet109 numFmts:
+//   numFmt 177: `#,##0_ ;[Red]\-#,##0\ `   →  negatives = [Red]-N
+//   numFmt 178: `#,##0_);[Red]\(#,##0\)`   →  negatives = [Red](N)
+// Both add comma thousands; round to int.
+function fmtMinus(v) {
   if (v == null || isNaN(v)) return "";
   const n = Math.round(v);
-  return n.toLocaleString("en-US");
+  return n.toLocaleString("en-US");      // -1,234  /  1,234
 }
 
-function fmtCost(v) {
+// Excel numFmt `#,##0_);[Red]\(#,##0\)` → the `_)` after positives means
+// "leave a right-side gap as wide as `)`" so digits line up with the negative
+// form (which has trailing `)`). We replicate that with a hidden `)` span.
+const _PAREN_PAD = '<span style="visibility:hidden">)</span>';
+function fmtParen(v) {
   if (v == null || isNaN(v)) return "";
-  return v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  const n = Math.round(v);
+  if (n < 0) return "(" + Math.abs(n).toLocaleString("en-US") + ")";
+  return n.toLocaleString("en-US") + _PAREN_PAD;
 }
 
-// Excel CF rule: 口數 < 0 → 淡綠 (#E1EEDB), 口數 > 0 → 淡紅 (#FBC9C6).
-// The lots cell drives the bg color of BOTH (lots, cost) cells in the pair.
-function cfBg(lots) {
+// Cost cells in Excel use numFmt 177 too (no decimals shown — rounded).
+const fmtCost = fmtMinus;
+
+// Excel CF rule per sheet109.xml:
+//   一般 row (台指期/電子期/金融期/CALL/股票期貨): 口數 < 0 → 淡綠, > 0 → 淡紅
+//   賣權 PUT row (R244): rules **reversed** — 口數 < 0 → 淡紅, > 0 → 淡綠
+// (PUT 多空意義相反)
+function cfBg(lots, isPut) {
   if (lots == null || lots === 0) return "";
-  return lots < 0 ? "background:#E1EEDB" : "background:#FBC9C6";
+  const negColor = "#E1EEDB", posColor = "#FBC9C6";
+  if (isPut) {
+    return lots < 0 ? `background:${posColor}` : `background:${negColor}`;
+  }
+  return lots < 0 ? `background:${negColor}` : `background:${posColor}`;
 }
 
-function tdNum(v, classes = "", inlineStyle = "") {
+// Two formatters per Excel numFmt:
+//   tdMinus → "-1,234" (口數/成本/收盤價/夜盤)
+//   tdParen → "(1,234)" (淨部位/開盤前部位/開盤前多空)
+// Both colour negatives red (Excel [Red] token).
+function tdMinus(v, classes = "", inlineStyle = "") {
   if (v == null) return `<td class="${classes}" style="${inlineStyle}"></td>`;
   if (v === 0) return `<td class="${classes}" style="${inlineStyle}">0</td>`;
   const cls = classes + (v < 0 ? " neg" : "");
-  return `<td class="${cls.trim()}" style="${inlineStyle}">${fmtInt(v)}</td>`;
+  return `<td class="${cls.trim()}" style="${inlineStyle}">${fmtMinus(v)}</td>`;
 }
 
-function tdCost(v, classes = "", inlineStyle = "") {
+function tdParen(v, classes = "", inlineStyle = "") {
   if (v == null) return `<td class="${classes}" style="${inlineStyle}"></td>`;
   const cls = classes + (v < 0 ? " neg" : "");
-  return `<td class="${cls.trim()}" style="${inlineStyle}">${fmtCost(v)}</td>`;
+  return `<td class="${cls.trim()}" style="${inlineStyle}">${fmtParen(v)}</td>`;
 }
+
+const tdNum = tdMinus;
+const tdCost = tdMinus;
 
 function render(payload) {
   const { date, view_date, rows } = payload;
@@ -69,51 +95,46 @@ function render(payload) {
 
   rows.forEach((r, i) => {
     const isPut = r.product === "賣權PUT";
-    const isOption = i === callIdx || i === putIdx;
-    const rowCls = isPut ? "put-row" : "";
 
-    // close_price column shown only for 台指期
-    const closeCell = r.close_price != null
-      ? `<td class="${rowCls}">${fmtInt(r.close_price)}</td>`
-      : `<td class="${rowCls} empty"></td>`;
+    // CF colors: applied to each (lots, cost) pair based on the lots sign.
+    // PUT row uses inverted rules (per Excel sheet109.xml dxfId mapping).
+    const cfDay = cfBg(r.day_lots, isPut);
+    const cfOI = cfBg(r.oi_lots, isPut);
+    const cfNight = cfBg(r.night_lots, isPut);
 
+    // Per Excel numFmt: 淨部位 / 開盤前部位 / 開盤前多空 → paren format (E,I,J cols)
+    //                   其他 → minus format (B,C,D,F,G,H cols)
     let preOpenCpCell;
     if (i === callIdx) {
       preOpenCpCell = r.pre_open_cp != null
-        ? `<td class="preopen-col ${r.pre_open_cp < 0 ? 'neg' : ''}" rowspan="2">${fmtInt(r.pre_open_cp)}</td>`
+        ? `<td class="preopen-col ${r.pre_open_cp < 0 ? 'neg' : ''}" rowspan="2">${fmtParen(r.pre_open_cp)}</td>`
         : `<td class="preopen-col" rowspan="2"></td>`;
     } else if (i === putIdx) {
-      preOpenCpCell = "";  // covered by CALL's rowspan
+      preOpenCpCell = "";
     } else {
       preOpenCpCell = `<td class="preopen-col"></td>`;
     }
 
-    // Per Excel CF: 每對 (口數, 成本) 用「口數」正負決定 bg color.
-    // PUT row 整列另有 row-level pink bg; CF 顏色不上 PUT row (Excel 也不上).
-    const cfDay = isPut ? "" : cfBg(r.day_lots);
-    const cfOI = isPut ? "" : cfBg(r.oi_lots);
-    const cfNight = isPut ? "" : cfBg(r.night_lots);
-
     const closeCellHTML = r.close_price != null
-      ? `<td class="col-divider">${fmtInt(r.close_price)}</td>`
+      ? `<td class="col-divider">${fmtMinus(r.close_price)}</td>`
       : `<td class="col-divider empty"></td>`;
 
     const nightLotsCell = r.night_lots == null
-      ? `<td class="empty"></td>` : tdNum(r.night_lots, "", cfNight);
+      ? `<td class="empty"></td>` : tdMinus(r.night_lots, "", cfNight);
     const nightCostCell = r.night_cost == null
-      ? `<td class="col-divider empty"></td>` : tdCost(r.night_cost, "col-divider", cfNight);
+      ? `<td class="col-divider empty"></td>` : tdMinus(r.night_cost, "col-divider", cfNight);
     const preOpenLotsCell = r.pre_open_lots == null
       ? `<td class="preopen-col empty"></td>`
-      : `<td class="preopen-col ${r.pre_open_lots < 0 ? 'neg' : ''}">${fmtInt(r.pre_open_lots)}</td>`;
+      : tdParen(r.pre_open_lots, "preopen-col", "");
 
     html.push(`
-      <tr class="${rowCls}">
-        <td class="product">${r.product}</td>
-        ${tdNum(r.day_lots, "", cfDay)}
-        ${tdCost(r.day_cost, "", cfDay)}
+      <tr>
+        <td class="product col-divider">${r.product}</td>
+        ${tdMinus(r.day_lots, "", cfDay)}
+        ${tdMinus(r.day_cost, "", cfDay)}
         ${i === 0 ? closeCellHTML : `<td class="col-divider empty"></td>`}
-        ${tdNum(r.oi_lots, "", cfOI)}
-        ${tdCost(r.oi_cost, "col-divider", cfOI)}
+        ${tdParen(r.oi_lots, "", cfOI)}
+        ${tdMinus(r.oi_cost, "col-divider", cfOI)}
         ${nightLotsCell}
         ${nightCostCell}
         ${preOpenLotsCell}
