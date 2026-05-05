@@ -159,17 +159,28 @@ def build_dashboard(date: str) -> dict[str, Any]:
         # Excel row order: 台指期/電子期/金融期/買權CALL/賣權PUT/股票期貨
         out_rows = out_rows[:3] + op_rows + [out_rows[3]]
 
-    # view date = next weekday after data date
+    # view_date defaults to "next trading day with day-session data in DB
+    # (= skip both weekends AND holidays)". Falls back to next weekday if
+    # nothing in DB.
     import datetime as dt
-    d = dt.date.fromisoformat(date)
-    nxt = d + dt.timedelta(days=1)
-    while nxt.weekday() >= 5:
-        nxt += dt.timedelta(days=1)
+    with connect() as con:
+        nxt_row = con.execute(
+            "SELECT MIN(date) FROM op_legal WHERE date > ? AND daynight='day'",
+            (date,)
+        ).fetchone()
+    if nxt_row and nxt_row[0]:
+        view_date = nxt_row[0]
+    else:
+        d = dt.date.fromisoformat(date)
+        nxt = d + dt.timedelta(days=1)
+        while nxt.weekday() >= 5:
+            nxt += dt.timedelta(days=1)
+        view_date = nxt.isoformat()
 
     tx_close = next((r["close_price"] for r in out_rows if r["product"] == "台指期"), None)
     return {
         "date": date,
-        "view_date": nxt.isoformat(),
+        "view_date": view_date,
         "rows": out_rows,
         "tx_close": tx_close,
     }

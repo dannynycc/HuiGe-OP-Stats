@@ -20,15 +20,27 @@
 ## 架構
 
 ```
-[手動點 refresh] ──→ FastAPI ──→ scrapers (12 endpoints) ──→ SQLite
-                                                                ↓
-                                       前端 HTML/JS ──── /api/today, /api/timeseries
+[手動 Refresh / Backfill]
+    │
+    ▼
+scrapers (12 endpoints)
+    │
+    ▼
+SQLite raw 表 (op_legal / fut_legal / fut_price / credit_*)
+    │
+    ▼
+build_dashboard() 套 Excel 公式 (排除投信，等效大台/電/金、selecciónes ×20、股期 ÷2)
+    │
+    ▼
+/api/dashboard?view_date=YYYY-MM-DD ──→ 單頁 HTML + vanilla JS
 ```
 
-- **後端**：Python 3 + FastAPI + requests + BeautifulSoup
-- **DB**：SQLite (`data/data.db`)
-- **前端**：單頁 HTML + Plotly（時序圖）+ vanilla JS（表格）
-- **無自動排程** — 手動按 refresh 抓當日
+- **後端**：Python 3 + FastAPI + requests + pandas + BeautifulSoup
+- **DB**：SQLite (`data/data.db`)，7 張表
+- **前端**：單頁 HTML + vanilla JS（無 framework，無 chart lib）
+- **無自動排程** — 手動按 refresh 抓當日；`scripts/backfill.py` 抓歷史
+- **Holiday-aware**：`data_date` / `view_date` 都用 DB lookup 自動 skip 假日，
+  不需 hardcode holiday list（兒童節、清明、過年、228、元旦、勞動節等都 OK）
 
 ## 資料來源（12 個 endpoint）
 

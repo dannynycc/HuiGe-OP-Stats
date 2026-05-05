@@ -1,5 +1,34 @@
 # Changelog
 
+## [v0.7] - 2026-05-05 20:00
+
+### Fixed (Holiday-aware logic — 用戶 hint「4/6 有開盤嗎? 4/3 有開盤嗎?」抓到 3 個串連 bug)
+- **Night session date label 對 holiday 錯位** — TAIFEX night endpoint 用「session
+  結束日」當 queryDate；holiday 前一個 trading day 的夜盤跨假到下一個 trading day，
+  被錯標到 holiday 當日。例：4/2 夜盤跨 4/3-4/6 long weekend 到 4/7 開市，被標
+  date=4/6（清明）。修：寫 SQL fix 把所有「該日無 day-session 但有 night-session」
+  的 orphan night row 重 label 到「前一個有 day session 的日期」。
+  - 5 個 holiday 已修：12/25→12/24、1/1→12/31、2/20→2/11、2/27→2/26、4/6→4/2
+- **Dashboard `data_date` 沒 skip holiday** — view_date=4/7 算 data_date=4/6（weekday-1）
+  但 4/6 是清明補假。修：`data_date = MAX(date) WHERE date < view_date AND has day-session`，
+  動態 DB lookup 不需 hardcode holiday list。
+- **Dashboard `view_date` 同樣只 skip weekend** — data_date=4/2 推 view_date=4/3，但 4/3
+  也是 holiday。修：`view_date = MIN(date) WHERE date > data_date AND has day-session`。
+
+### Verified
+- Dashboard `For 4/7(二) 開盤前看` 跟 Excel `4_7` sheet R237-R245 freeze ground truth
+  全部對齊：台指期 -4,197 / 33,571 / (37,940) / 3,725 / 32,510 / (34,216)，
+  CALL 開盤前多空 (4,329) — 1:1 match。
+
+### Added
+- `2025-11-06` ~ `2026-03-31` 完整 backfill（背景跑中，~104 個交易日，~9.5 分鐘）。
+
+## [v0.6.x] - 2026-05-05 19:00~19:25 (中間版本未打 tag)
+- font enlargement (16px → 19px / 21px → 24px) 但 table 寬度不變（padding 收）
+- `<colgroup>` 設 col widths 收左右兩端、淨部位/開盤前部位較寬
+- 負數紅色 `#d92929`（暗紅）→ `#FF0000`（純紅，Excel `[Red]` token）
+- thead row 1 colspan 修正（之前 11 cols vs row 3 的 10 cols 不一致）
+
 ## [v0.6] - 2026-05-05 19:05
 
 ### Fixed (用戶連環抓到的格式錯誤)

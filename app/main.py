@@ -117,15 +117,27 @@ def api_dashboard(view_date: str | None = Query(default=None),
     with connect() as con:
         data_date: str | None
         if view_date:
-            v = dt.date.fromisoformat(view_date)
-            d = v - dt.timedelta(days=1)
-            while d.weekday() >= 5:
-                d -= dt.timedelta(days=1)
-            data_date = d.isoformat()
+            # Use DB lookup so we skip BOTH weekends and holidays.
+            # 「For X 開盤前看」對應的 data_date = X 之前最近有 day-session 的日期。
+            row = con.execute(
+                """SELECT MAX(date) FROM op_legal
+                   WHERE date < ? AND daynight='day'""",
+                (view_date,)
+            ).fetchone()
+            data_date = row[0] if row and row[0] else None
+            if not data_date:
+                # fallback for dates earlier than DB (e.g. before backfill)
+                row = con.execute(
+                    "SELECT MAX(date) FROM daily_summary WHERE date < ?",
+                    (view_date,)
+                ).fetchone()
+                data_date = row[0] if row and row[0] else None
         elif date:
             data_date = date
         else:
-            row = con.execute("SELECT MAX(date) FROM fut_legal").fetchone()
+            row = con.execute(
+                "SELECT MAX(date) FROM op_legal WHERE daynight='day'"
+            ).fetchone()
             data_date = row[0] if row and row[0] else None
             if not data_date:
                 row = con.execute("SELECT MAX(date) FROM daily_summary").fetchone()
