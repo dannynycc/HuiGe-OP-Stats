@@ -29,7 +29,7 @@
     background: var(--bg);
     color: var(--fg);
     font-family: "DFKai-SB", "BiauKai", "標楷體", "Kaiti TC", "Kaiti SC", "Microsoft JhengHei", serif;
-    font-size: 16px;
+    font-size: 19px;          /* 放大 — 表格寬高保持不變，靠收 cell padding 補空間 */
     font-weight: normal;
   }
   header {
@@ -68,7 +68,7 @@
   }
   table.summary th, table.summary td {
     border: 1px solid var(--border-thin);     /* inner thin */
-    padding: 7px 10px;
+    padding: 4px 8px;                          /* 收一點 padding 讓 row 不會跟著變高 */
     text-align: right;
     white-space: nowrap;
     font-weight: normal;                      /* Excel: no bold anywhere */
@@ -89,9 +89,9 @@
   }
   table.summary thead th.title {
     background: #ffffff;        /* Excel B237 fill = none = white */
-    font-size: 21px;            /* sz=16 → ~21px */
+    font-size: 24px;            /* sz=16 → ~24px (略大於 body) */
     text-align: center;
-    padding: 10px;
+    padding: 8px;
   }
   table.summary thead th.section {
     background: #ffffff;
@@ -123,10 +123,10 @@
     background: var(--for-corner-bg);
     color: var(--fg);
     text-align: center;
-    line-height: 1.65;
-    padding: 14px 8px;
+    line-height: 1.5;
+    padding: 10px 8px;
     border-right: 2px solid var(--border-thick);
-    font-size: 16px;
+    font-size: 19px;     /* match body */
   }
 </style>
 </head>
