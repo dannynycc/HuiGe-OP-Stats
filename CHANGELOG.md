@@ -1,5 +1,44 @@
 # Changelog
 
+## [v0.10.4] - 2026-05-06 07:39
+
+### 🎯 ALL CLEAN — 14 columns × 1536 trading days, 0 NULL
+
+#### 補完用的 4 source unified backfill (PID 35537)
+- `scripts/backfill_historical_unified.py` 一個 process 跑 4 source:
+  - TWSE 信用 (FinMind TaiwanStockTotalMarginPurchaseShortSale)
+  - TPEX 信用 (TPEX margin_bal_result endpoint)
+  - 個股期合計法人 (FinMind TaiwanFuturesInstitutionalInvestors data_id='SF')
+  - TPEX 上櫃總市值 (TPEX highlight endpoint)
+- 結果: 809/809 dates: tpex_m / sf / tpex_cap = 全 cover, twse_m 卡 301 (FinMind quota)
+
+#### Audit + auto-fix chain (PID 37188)
+- `scripts/audit_and_fix_all.py` — 跑完 unified 自動 trigger
+  - 4 個 fix strategies 串跑: derive pct / op_cp_net / mkt_cap interp / TWSE MI_MARGN
+  - 對 ALL NULL twse_margin_amt_oku 用 TWSE MI_MARGN 抓 (WAF lift 後 honor historical)
+  - 結果: 514 -> 6 NULL (508 fixed), 6 個 transient TWSE timeout
+- Inline 補最後 6 dates (2021-09-22, 10-08, 2022-01-03, 03-11, 06-22, 2023-01-04)
+  - 全成功重抓: 2635 / 2513 / 2824 / 2656 / 2141 / 1660 億
+- Bug fix in audit script: SQLite connection closed at exit, retry logic for TWSE transient
+
+#### Final coverage
+| col | NULL |
+|---|---|
+| tx_close | 0 ✓ |
+| twii_close | 0 ✓ |
+| op_legal_net | 0 ✓ |
+| op_call_net | 0 ✓ |
+| op_put_net | 0 ✓ |
+| op_cp_net | 0 ✓ |
+| fut_pre_open_net | 0 ✓ |
+| stock_fut_legal_net | 0 ✓ |
+| twse_margin_amt_oku | 0 ✓ |
+| tpex_margin_amt_oku | 0 ✓ |
+| twse_mkt_cap_chao | 0 ✓ |
+| tpex_mkt_cap_chao | 0 ✓ |
+| twse_margin_pct | 0 ✓ |
+| tpex_margin_pct | 0 ✓ |
+
 ## [v0.10.3] - 2026-05-06 01:14
 
 ### Fixed (md freshness — 用戶提醒每次 commit 必掃)

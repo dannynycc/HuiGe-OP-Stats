@@ -189,16 +189,17 @@ Excel 慣例。已驗證 14 個 cross-holiday absorbing dates 全部 day=30 nigh
 - Orphan night sweep = 把「該日無 day-session 但有 night-session」的 row 重 label
   到「之前最近有 day-session 的日期」。
 
-## 已知尚未實作 / 缺資料
+## 已知尚未實作
 
 - 損益圖（Excel「損益圖」sheet 的 9 checkbox S1-S3/U1-U6 互斥邏輯）— 用戶決定不做
 - 自動排程 / 定時 refresh — 用戶決定不做
-- 2020-2023/05 段 daily_summary 仍缺 `twse_margin_amt_oku` / `tpex_margin_amt_oku`
-  / `stock_fut_legal_net` / `tpex_mkt_cap_chao` — 第三方 source 全卡死中：
-  - **TWSE WAF**: HTTP 307 ban（連續 50+ requests 觸發）
-  - **FinMind 免費版**: HTTP 403 IP-level ban（24h-7d 才解）
-  - 待 ban lift / 用戶下載 TWSE 信用週報 xls 補
-- 2023-05-05 後 11 個 dates 也缺 `twse_margin_amt_oku`（同上 source 卡死）
+
+## 資料完整度 (v0.10.4 ALL CLEAN, 1536 dates × 14 cols, 0 NULL)
+
+每次 backfill 後跑 `scripts/audit_and_fix_all.py`：
+1. NULL audit per column
+2. 自動 fix: derive pct / op_cp_net / mkt_cap interp / TWSE MI_MARGN backfill
+3. 0 NULL → exit 0, 任何 leftover → exit 1 + sample dates 列出
 
 ## 上市總市值 (twse_mkt_cap_chao) 資料策略 (v0.10.0 起)
 
