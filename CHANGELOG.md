@@ -1,5 +1,26 @@
 # Changelog
 
+## [v0.5] - 2026-05-05 18:54
+
+### Changed (依用戶連續反饋全部一次到位)
+- **Layout 對齊 Excel 慣例**：金融期 / 股票期貨 的「夜盤」欄、電子期 / 金融期 /
+  股票期貨 的「開盤前部位」欄改為**留空**（per 工作表2 R240-R245 公式：這些 cell
+  在 Excel 沒公式所以原本就空白）。
+- **UX 改進**：移除「載入」按鈕。Date picker 改變即立刻載入新日期，URL 同步更新。
+- **CF 上色規則 (mirror Excel)**：每對 (口數, 成本) cell 依「口數」正負上色：
+  - 口數 < 0 → 淡綠 #E1EEDB（空方占優）
+  - 口數 > 0 → 淡紅 #FBC9C6（多方占優）
+  - 口數 = 0 / 空 → 預設白
+  - 規則 dxfId/cfRule 從 sheet109.xml 直接拆出來
+- **框線粗細**：D 欄(收盤價)右、F 欄(成本)右、H 欄(夜盤成本)右、開盤前部位左用
+  2px 粗線（mirror Excel `thick` border）；其他細線。Header rows 底端加粗。
+- **字體**：標楷體（DFKai-SB / 標楷體 / Kaiti TC fallback chain）跟 Excel 一致。
+- **賣權 PUT 整列粉色 row background** (Excel row-level fill)。
+
+### Added — DB 資料
+- Backfill 整個 2026/04 (22 個交易日) 進 DB raw 表，dashboard 任一 4 月日期
+  立即可看完整 6 列。
+
 ## [v0.4] - 2026-05-05 18:39
 
 ### Fixed (重大: 夜盤資料 shift 1 天)

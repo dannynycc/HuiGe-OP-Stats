@@ -28,16 +28,24 @@ function fmtCost(v) {
   return v.toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
 
-function tdNum(v, classes = "") {
-  if (v == null || v === 0) return `<td class="${classes}">${v === 0 ? "0" : ""}</td>`;
-  const cls = classes + (v < 0 ? " neg" : "");
-  return `<td class="${cls.trim()}">${fmtInt(v)}</td>`;
+// Excel CF rule: 口數 < 0 → 淡綠 (#E1EEDB), 口數 > 0 → 淡紅 (#FBC9C6).
+// The lots cell drives the bg color of BOTH (lots, cost) cells in the pair.
+function cfBg(lots) {
+  if (lots == null || lots === 0) return "";
+  return lots < 0 ? "background:#E1EEDB" : "background:#FBC9C6";
 }
 
-function tdCost(v, classes = "") {
-  if (v == null) return `<td class="${classes}"></td>`;
+function tdNum(v, classes = "", inlineStyle = "") {
+  if (v == null) return `<td class="${classes}" style="${inlineStyle}"></td>`;
+  if (v === 0) return `<td class="${classes}" style="${inlineStyle}">0</td>`;
   const cls = classes + (v < 0 ? " neg" : "");
-  return `<td class="${cls.trim()}">${fmtCost(v)}</td>`;
+  return `<td class="${cls.trim()}" style="${inlineStyle}">${fmtInt(v)}</td>`;
+}
+
+function tdCost(v, classes = "", inlineStyle = "") {
+  if (v == null) return `<td class="${classes}" style="${inlineStyle}"></td>`;
+  const cls = classes + (v < 0 ? " neg" : "");
+  return `<td class="${cls.trim()}" style="${inlineStyle}">${fmtCost(v)}</td>`;
 }
 
 function render(payload) {
@@ -80,17 +88,35 @@ function render(payload) {
       preOpenCpCell = `<td class="preopen-col"></td>`;
     }
 
+    // Per Excel CF: 每對 (口數, 成本) 用「口數」正負決定 bg color.
+    // PUT row 整列另有 row-level pink bg; CF 顏色不上 PUT row (Excel 也不上).
+    const cfDay = isPut ? "" : cfBg(r.day_lots);
+    const cfOI = isPut ? "" : cfBg(r.oi_lots);
+    const cfNight = isPut ? "" : cfBg(r.night_lots);
+
+    const closeCellHTML = r.close_price != null
+      ? `<td class="col-divider">${fmtInt(r.close_price)}</td>`
+      : `<td class="col-divider empty"></td>`;
+
+    const nightLotsCell = r.night_lots == null
+      ? `<td class="empty"></td>` : tdNum(r.night_lots, "", cfNight);
+    const nightCostCell = r.night_cost == null
+      ? `<td class="col-divider empty"></td>` : tdCost(r.night_cost, "col-divider", cfNight);
+    const preOpenLotsCell = r.pre_open_lots == null
+      ? `<td class="preopen-col empty"></td>`
+      : `<td class="preopen-col ${r.pre_open_lots < 0 ? 'neg' : ''}">${fmtInt(r.pre_open_lots)}</td>`;
+
     html.push(`
-      <tr>
-        <td class="product ${rowCls}">${r.product}</td>
-        ${tdNum(r.day_lots, `${rowCls} day-section`)}
-        ${tdCost(r.day_cost, `${rowCls} day-section`)}
-        ${closeCell}
-        ${tdNum(r.oi_lots, rowCls)}
-        ${tdCost(r.oi_cost, rowCls)}
-        ${tdNum(r.night_lots, rowCls)}
-        ${tdCost(r.night_cost, rowCls)}
-        <td class="preopen-col ${r.pre_open_lots < 0 ? 'neg' : ''}">${fmtInt(r.pre_open_lots)}</td>
+      <tr class="${rowCls}">
+        <td class="product">${r.product}</td>
+        ${tdNum(r.day_lots, "", cfDay)}
+        ${tdCost(r.day_cost, "", cfDay)}
+        ${i === 0 ? closeCellHTML : `<td class="col-divider empty"></td>`}
+        ${tdNum(r.oi_lots, "", cfOI)}
+        ${tdCost(r.oi_cost, "col-divider", cfOI)}
+        ${nightLotsCell}
+        ${nightCostCell}
+        ${preOpenLotsCell}
         ${preOpenCpCell}
       </tr>
     `);
@@ -156,14 +182,16 @@ async function doRefresh() {
   }
 }
 
-$("#btnLoad").addEventListener("click", () => {
+// Date picker: load immediately on change (debounced lightly).
+let _loadTimer = null;
+$("#viewDate").addEventListener("change", () => {
   const v = $("#viewDate").value;
-  // sync URL so deep-linking / refresh works
   const u = new URL(window.location);
   if (v) u.searchParams.set("view_date", v);
   else u.searchParams.delete("view_date");
   history.replaceState(null, "", u);
-  loadView(v);
+  clearTimeout(_loadTimer);
+  _loadTimer = setTimeout(() => loadView(v), 50);
 });
 $("#btnRefresh").addEventListener("click", doRefresh);
 

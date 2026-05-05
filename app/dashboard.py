@@ -82,18 +82,24 @@ def build_dashboard(date: str) -> dict[str, Any]:
         "tx_close": 37645,
       }
     """
-    fut_specs: list[tuple[str, list[tuple[str, float]], float]] = [
-        # (label,  [(product, factor), ...],  cost_multiplier)
-        ("台指期", [("臺股期貨", 1), ("小型臺指期貨", 4), ("微型臺指期貨", 20)], 5.0),
-        ("電子期", [("電子期貨", 1), ("小型電子期貨", 8)], 1.0 / 4.0),
-        ("金融期", [("金融期貨", 1), ("小型金融期貨", 4)], 1.0),
-        ("股票期貨", [("股票期貨", 1)], 1.0 / 2.0),
+    # (label, [(product, factor), ...], cost_mul, show_night, show_pre_open)
+    # show_* flags mirror Excel 工作表2 R240-R245 layout (cells without formula
+    # are displayed as blank in the original sheet):
+    #   - 台指期 / 買權 / 賣權: show day + night + pre_open
+    #   - 電子期: show day + night, but pre_open blank
+    #   - 金融期 / 股票期貨: show day only; night and pre_open blank
+    # (這跟 TAIFEX 4夜盤FUT 表是否有 raw data 無關 — 只是柴柴 Excel 慣例)
+    fut_specs: list[tuple[str, list[tuple[str, float]], float, bool, bool]] = [
+        ("台指期", [("臺股期貨", 1), ("小型臺指期貨", 4), ("微型臺指期貨", 20)], 5.0,    True,  True),
+        ("電子期", [("電子期貨", 1), ("小型電子期貨", 8)], 1.0 / 4.0,                    True,  False),
+        ("金融期", [("金融期貨", 1), ("小型金融期貨", 4)], 1.0,                          False, False),
+        ("股票期貨", [("股票期貨", 1)], 1.0 / 2.0,                                       False, False),
     ]
 
     out_rows: list[dict[str, Any]] = []
     with connect() as con:
         # -- futures rows --
-        for label, products_factors, cost_mul in fut_specs:
+        for label, products_factors, cost_mul, show_night, show_pre_open in fut_specs:
             day_lots, day_amt = _sum_fut(con, date, "day", products_factors, "net")
             oi_lots, oi_amt = _sum_fut(con, date, "day", products_factors, "oi_net")
             night_lots, night_amt = _sum_fut(con, date, "night", products_factors, "net")
@@ -104,9 +110,11 @@ def build_dashboard(date: str) -> dict[str, Any]:
                 "close_price": None,
                 "oi_lots": int(round(oi_lots)) if oi_lots else 0,
                 "oi_cost": _safe_div(oi_amt, oi_lots, cost_mul),
-                "night_lots": int(round(night_lots)) if night_lots else 0,
-                "night_cost": _safe_div(night_amt, night_lots, cost_mul),
-                "pre_open_lots": int(round(oi_lots + night_lots)) if (oi_lots + night_lots) else 0,
+                "night_lots": (int(round(night_lots)) if night_lots else 0) if show_night else None,
+                "night_cost": _safe_div(night_amt, night_lots, cost_mul) if show_night else None,
+                "pre_open_lots": (int(round(oi_lots + night_lots))
+                                  if show_pre_open and (oi_lots + night_lots)
+                                  else (0 if show_pre_open else None)),
                 "pre_open_cp": None,
             }
             if label == "台指期":

@@ -12,17 +12,20 @@
     --header-text: #5a3b1a;
     --fg: #1f2937;
     --muted: #6b7280;
-    --pos-bg: #e8f3e0;
     --neg-text: #d92929;
-    --border: #c9c9c9;
-    --pink: #f7d7d7;
+    --border-thin: #b8b8b8;
+    --border-thick: #2c2c2c;
+    --row-put: #f9d8d8;          /* 賣權 PUT 整列粉色 row background */
+    --cf-neg: #E1EEDB;           /* 口數 < 0 → 淡綠 (Excel CF 規則) */
+    --cf-pos: #FBC9C6;           /* 口數 > 0 → 淡紅 (Excel CF 規則) */
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--fg);
-    font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    /* 標楷體 — follow Excel 慣例 */
+    font-family: "DFKai-SB", "BiauKai", "標楷體", "Kaiti TC", "Kaiti SC", "Microsoft JhengHei", serif;
     font-size: 14px;
   }
   header {
@@ -52,23 +55,28 @@
     border-collapse: collapse;
     width: 100%;
     background: var(--panel);
-    border: 2px solid var(--border);
+    border: 2px solid var(--border-thick);
+    font-family: inherit;  /* 繼承 body 的標楷體 */
   }
   table.summary th, table.summary td {
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-thin);
     padding: 6px 10px;
     text-align: right;
     white-space: nowrap;
     font-size: 14px;
   }
-  table.summary th.label, table.summary td.label {
-    text-align: center;
-    font-weight: 600;
+  /* 區段分隔粗線：D 欄(收盤價)右、F 欄(成本)右、H 欄(夜盤成本)右 */
+  table.summary th.col-divider, table.summary td.col-divider {
+    border-right: 2px solid var(--border-thick);
   }
+  /* Header rows 三條粗線 */
+  table.summary thead tr:last-child th { border-bottom: 2px solid var(--border-thick); }
+  table.summary thead tr:first-child th.title { border-bottom: 2px solid var(--border-thick); }
   table.summary thead th {
     background: var(--header-bg2);
     color: #1a3a5e;
     font-weight: 600;
+    text-align: center;
   }
   table.summary thead th.title {
     background: var(--header-bg);
@@ -80,7 +88,6 @@
   table.summary thead th.section {
     background: #ffffff;
     font-weight: 700;
-    border-bottom: 2px solid var(--border);
   }
   table.summary tbody td.product {
     background: var(--header-bg2);
@@ -88,18 +95,19 @@
     font-weight: 600;
     text-align: center;
   }
-  table.summary tbody td.put-row {
-    background: var(--pink);
+  /* 賣權 PUT row 整列粉色 */
+  table.summary tbody tr.put-row td:not(.product) {
+    background: var(--row-put);
   }
-  table.summary tbody td.day-section {
-    background: var(--pos-bg);
+  table.summary tbody tr.put-row td.product {
+    background: var(--row-put);
+    color: #722f2f;
   }
   td.neg { color: var(--neg-text); }
-  td.empty { background: #fff; color: var(--muted); }
+  td.empty { background: #fafafa; color: var(--muted); }
   .preopen-col {
-    background: #fff;
-    border-left: 2px solid var(--border) !important;
-    padding-left: 14px !important;
+    background: #ffffff;
+    border-left: 2px solid var(--border-thick) !important;
   }
   .for-corner {
     background: var(--header-bg);
@@ -108,6 +116,7 @@
     text-align: center;
     line-height: 1.6;
     padding: 14px 8px !important;
+    border-right: 2px solid var(--border-thick);
   }
   #status { color: var(--muted); font-size: 12px; margin-left: auto; }
   #status.ok { color: #1a7a3a; }
@@ -121,7 +130,6 @@
   <span class="meta">For</span>
   <input type="date" id="viewDate">
   <span class="meta">開盤前看</span>
-  <button id="btnLoad">載入</button>
   <button id="btnRefresh">Refresh 抓最新</button>
   <div id="status">—</div>
 </header>
@@ -135,19 +143,19 @@
         <th colspan="2" class="title" style="background:transparent;border:0"></th>
       </tr>
       <tr>
-        <th colspan="5" class="section" id="dayHeader">— 日盤</th>
-        <th colspan="2" class="section" id="nightHeader">— 夜盤</th>
+        <th colspan="5" class="section col-divider" id="dayHeader">— 日盤</th>
+        <th colspan="2" class="section col-divider" id="nightHeader">— 夜盤</th>
         <th class="preopen-col">開盤前部位</th>
         <th class="preopen-col">開盤前多空</th>
       </tr>
       <tr>
         <th>口數</th>
         <th>成本</th>
-        <th>收盤價</th>
+        <th class="col-divider">收盤價</th>
         <th>淨部位</th>
-        <th>成本</th>
+        <th class="col-divider">成本</th>
         <th>口數</th>
-        <th>成本</th>
+        <th class="col-divider">成本</th>
         <th class="preopen-col">&nbsp;</th>
         <th class="preopen-col">&nbsp;</th>
       </tr>
