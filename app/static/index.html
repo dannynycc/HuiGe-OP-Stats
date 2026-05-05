@@ -116,24 +116,23 @@
   table.summary th.preopen-col,
   table.summary td.preopen-col { background: #ffffff; }
 
-  /* 融資餘額 panel — 主表下方獨立小字面板，寬度 fit content（不撐滿） */
+  /* 融資餘額 panel — 主表下方獨立小字面板，上下排列、寬度 fit content */
   .margin-panel {
     margin: 14px 0 0;
-    padding: 8px 14px;          /* 上下 8、左右 14 — 兩側對稱 */
+    padding: 8px 14px;
     background: #ffffff;
     border: 1px solid var(--border-thin);
     border-radius: 4px;
     font-size: 18px;
     color: var(--fg);
-    display: inline-flex;       /* 寬度跟內容 fit，不延伸到右邊 */
-    flex-wrap: wrap;
-    gap: 8px 18px;
-    align-items: baseline;
+    display: inline-flex;
+    flex-direction: column;     /* 上下排列 */
+    gap: 4px;
   }
-  .margin-panel .m-label { color: var(--muted); margin-right: 6px; font-size: 16px; }
+  .margin-panel .m-row { white-space: nowrap; }
+  .margin-panel .m-label { color: var(--muted); margin-right: 8px; font-size: 16px; }
   .margin-panel .m-value { font-weight: 600; }
-  .margin-panel .m-unit { color: var(--muted); font-size: 15px; margin-left: 2px; }
-  .margin-panel .m-sep { color: #c9c9c9; }
+  .margin-panel .m-unit { color: var(--muted); font-size: 15px; margin-left: 4px; }
 
   /* "For YYYY/MM/DD(週) 開盤前看" — Excel A237 橘黃 #FABC00.
      Selector specificity must beat `table.summary thead th` (=0,1,2) so we
@@ -202,19 +201,18 @@
     </tbody>
   </table>
 
-  <!-- 信用交易補充資訊 — 獨立 panel 在表格下方 -->
+  <!-- 信用交易補充資訊 — 獨立 panel 在表格下方，上下排列 -->
   <div class="margin-panel" id="marginPanel">
-    <span class="m-group">
+    <div class="m-row">
       <span class="m-label">上市融資餘額</span>
       <span class="m-value" id="twseMarginAmt">—</span>
       <span class="m-unit">億元</span>
-    </span>
-    <span class="m-sep">．</span>
-    <span class="m-group">
+    </div>
+    <div class="m-row">
       <span class="m-label">上櫃融資餘額</span>
       <span class="m-value" id="tpexMarginAmt">—</span>
       <span class="m-unit">億元</span>
-    </span>
+    </div>
   </div>
 
   <p style="color:var(--muted);font-size:13px;margin-top:14px;line-height:1.6;font-family:-apple-system,'Segoe UI','Microsoft JhengHei',sans-serif">
