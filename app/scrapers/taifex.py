@@ -203,19 +203,20 @@ def fetch_fut(query_date: str, daynight: str) -> dict[str, Any]:
     }
 
 
-def fetch_fut_price(query_date: str | None = None) -> dict[str, Any]:
-    """台指期 TX 各到期月收盤。
+def fetch_fut_price(query_date: str | None = None,
+                    commodity_id: str = "TX") -> dict[str, Any]:
+    """各到期月收盤 (TAIFEX futDailyMarketReport).
 
-    If query_date (YYYY/MM/DD) is given → POST /cht/3/futDailyMarketReport
-        (honors date, supports backfill).
-    Else → GET /cht/3/futDailyMarketExcel (only today, kept as fast path).
+    commodity_id: 'TX' 台指 / 'TE' 電子 / 'TF' 金融 / 'MTX' 小台 / 'MXF' 微台 …
+    GET fast path (futDailyMarketExcel) only returns today + always TX, so when
+    backfilling or asking for non-TX you must use POST path with query_date set.
     """
     if query_date:
         url = f"{BASE}/futDailyMarketReport"
         payload = {
             "queryDate": query_date,
             "MarketCode": "0",
-            "commodity_id": "TX",
+            "commodity_id": commodity_id,
             "queryType": "1",
         }
         headers = {

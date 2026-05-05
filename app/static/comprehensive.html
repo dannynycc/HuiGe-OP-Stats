@@ -56,13 +56,20 @@
     overflow-y: auto;    /* 內部 scroll, sticky pins 到 wrap 頂 */
     overflow-x: auto;
   }
+  /* IMPORTANT: border-collapse:collapse breaks position:sticky on <th> in
+     Chromium/Edge — thead scrolls away with rows. Must use separate + 0 spacing.
+     Trade-off: borders no longer collapse so we draw on right+bottom only and
+     let table's outer border close it off. */
   table.zonghe {
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     margin: 0 auto;
     font-family: inherit;
     font-size: 14px;
     width: 100%;
-    table-layout: auto;
+    table-layout: fixed;
+    border-left: 1px solid #d0d0d0;
+    border-top: 1px solid #d0d0d0;
   }
   table.zonghe th, table.zonghe td {
     padding: 3px 5px;
@@ -71,22 +78,22 @@
     font-weight: normal;
     color: var(--fg);
     background: #fff;
-    border: 1px solid #d0d0d0;  /* 淺灰框 (per user "顏色不用太深") */
+    border-right: 1px solid #d0d0d0;
+    border-bottom: 1px solid #d0d0d0;
   }
-  /* Header — sticky to viewport. Use border-collapse:separate so per-row
-     sticky positions don't fight; pin R1 at 0, R2 at R1's actual height
-     measured at runtime via JS (auto-set --r1-height). */
   table.zonghe thead th {
     background: var(--header-bg);
     color: var(--fg);
     text-align: center;
-    border: 1px solid #888;
+    border-right: 1px solid #888;
+    border-bottom: 1px solid #888;
     position: sticky;
     z-index: 3;
   }
-  table.zonghe thead tr:nth-child(1) th { top: 0; }
+  table.zonghe thead tr:nth-child(1) th { top: 0; z-index: 4; }
   table.zonghe thead tr:nth-child(2) th {
     top: var(--r1-height, 22px);  /* JS measures real R1 height after render */
+    z-index: 3;
   }
   /* Excel has no zebra stripe — pure white. Hover only for navigation help. */
   table.zonghe tbody tr:hover td { background: #fff7d6; }

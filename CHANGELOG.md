@@ -1,5 +1,25 @@
 # Changelog
 
+## [v0.9.4] - 2026-05-05 23:59
+
+### Fixed
+- **綜合整理 sticky thead 完全失效** — 用戶截圖顯示 R1+R2 跟 row 一起被滾走。
+  Root cause: `border-collapse: collapse` 跟 `position: sticky` 在 `<th>` 上不
+  相容（Chromium/Edge 已知 bug）。改 `border-collapse: separate; border-spacing: 0`，
+  border 只畫 right+bottom + table 外 left+top 補齊。Playwright 驗證 scroll 800px
+  後 R1+R2 仍 stick wrap top，R1→R2 gap=0px。
+
+### Added
+- **TAIFEX 電子期 (TE) / 金融期 (TF) 日收盤抓取**
+  - `taifex.fetch_fut_price(query_date, commodity_id)` 加 `commodity_id` 參數
+    (default "TX" 維持向後相容)
+  - `app/refresh.py`：每次 refresh 同時 POST TX + TE + TF 寫入 `fut_price`
+    （`contract` 欄位區分）
+  - `scripts/backfill_fut_price.py`：每個 date 內 loop 三個 commodity，
+    同步 backfill 整段 history
+  - 驗證 2026-04-30：TX 39360 / TE 2527 / TF 2491 三 contract 都拿得到
+- `scripts/verify_sticky.py` — Playwright sticky/scroll 視覺與量測驗證
+
 ## [v0.9.3] - 2026-05-05 23:35
 
 ### Fixed (用戶連續抓到 3 個問題)

@@ -46,7 +46,9 @@ def refresh(target_date: str | None = None) -> dict[str, Any]:
     safe("op_night", taifex.fetch_op, target_slash, "night")
     safe("fut_day", taifex.fetch_fut, target_slash, "day")
     safe("fut_night", taifex.fetch_fut, target_slash, "night")
-    safe("fut_price", taifex.fetch_fut_price, target_slash)
+    safe("fut_price", taifex.fetch_fut_price, target_slash, "TX")
+    safe("fut_price_te", taifex.fetch_fut_price, target_slash, "TE")
+    safe("fut_price_tf", taifex.fetch_fut_price, target_slash, "TF")
     safe("twse_credit", twse.fetch_credit, target_date)
     safe("twse_turnover", twse.fetch_turnover, target_date)
     safe("twse_mkt_cap", twse.fetch_mkt_cap, target_date)
@@ -121,24 +123,26 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
                     row.get("oi_net_lots"), row.get("oi_net_amt"),
                 ))
 
-        # FUT price
-        fp = results.get("fut_price") or {}
-        fp_actual = fp.get("actual_date") or date_dash
-        for row in _safe_rows(fp):
-            con.execute("""
-                INSERT OR REPLACE INTO fut_price
-                (date, contract, expiry, open_, high, low, close,
-                 change_str, change_pct_str, ah_vol, day_vol, total_vol,
-                 settle, oi, best_bid, best_ask)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                fp_actual, row.get("contract"), row.get("expiry"),
-                row.get("open_"), row.get("high"), row.get("low"), row.get("close"),
-                row.get("change_str"), row.get("change_pct_str"),
-                row.get("ah_vol"), row.get("day_vol"), row.get("total_vol"),
-                row.get("settle"), row.get("oi"),
-                row.get("best_bid"), row.get("best_ask"),
-            ))
+        # FUT price — TX (台指) + TE (電子) + TF (金融) all flow into fut_price
+        # table; row.contract column distinguishes (TX/MTX/TE/TF/etc).
+        for tag in ("fut_price", "fut_price_te", "fut_price_tf"):
+            fp = results.get(tag) or {}
+            fp_actual = fp.get("actual_date") or date_dash
+            for row in _safe_rows(fp):
+                con.execute("""
+                    INSERT OR REPLACE INTO fut_price
+                    (date, contract, expiry, open_, high, low, close,
+                     change_str, change_pct_str, ah_vol, day_vol, total_vol,
+                     settle, oi, best_bid, best_ask)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    fp_actual, row.get("contract"), row.get("expiry"),
+                    row.get("open_"), row.get("high"), row.get("low"), row.get("close"),
+                    row.get("change_str"), row.get("change_pct_str"),
+                    row.get("ah_vol"), row.get("day_vol"), row.get("total_vol"),
+                    row.get("settle"), row.get("oi"),
+                    row.get("best_bid"), row.get("best_ask"),
+                ))
 
         # TWSE credit
         cr = results.get("twse_credit") or {}

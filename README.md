@@ -51,9 +51,10 @@ build_dashboard() 套 Excel 公式 (排除投信，等效大台/電/金、selecc
 | `/cht/3/callsAndPutsDateAh` | POST | ✅ | 三大法人 OP 夜盤 |
 | `/cht/3/futContractsDate` | POST | ✅ | 三大法人期貨日盤 |
 | `/cht/3/futContractsDateAh` | POST | ✅ | 三大法人期貨夜盤 |
-| `/cht/3/futDailyMarketReport` | POST | ✅ | 台指期 TX 各月（v0.8 起，原用 `futDailyMarketExcel` 只能抓當天）|
+| `/cht/3/futDailyMarketReport` | POST | ✅ | 期貨各月收盤；v0.9.4 起同時抓 TX (台指) + TE (電子) + TF (金融)，commodity_id 切換 |
 
 POST body: `queryDate=YYYY/MM/DD&commodityId=&MarketCode=0&queryType=1`
+（fut_price 的 commodity_id：`TX` / `TE` / `TF`，三個 contract 都進同一張表，`contract` 欄區分）
 
 ### TWSE（3）
 | URL | 編碼 | 用途 |
@@ -175,24 +176,30 @@ Excel 慣例。已驗證 14 個 cross-holiday absorbing dates 全部 day=30 nigh
 - **For 2/23 開盤前看（跨春節 12-day 連假）**：data_date 自動跳到 2/11，6 列
   總表跟 Excel R237-R245 freeze 1:1 match。
 
-### 聚合公式（從工作表2 R240-R245 反組譯）
-- `op_call_net` / `op_put_net` / `stock_fut_legal_net` =
-  外資 + 自營商 OI 淨口（**排除投信**，這是隱藏在 Excel 公式裡的潛規則）
-- `tx_close` = TX 近月收盤（`futDailyMarketExcel` 第一筆）
-- `op_cp_net` = `op_call_net` - `op_put_net`
-- `twse_margin_amt_oku` = 仟元 / 100000（仟元 → 億元）
-- `twse_mkt_cap_chao` = 億元 / 10000（億元 → 兆元）
-- `tpex_mkt_cap_chao` = 佰萬元 / 1,000,000（佰萬元 → 兆元）
-
 ### Holiday-aware 邏輯（不需 hardcode 假期表）
 - `data_date` = `MAX(date) FROM op_legal WHERE date < view_date AND daynight='day'`
 - `view_date` (response) = `MIN(date) FROM op_legal WHERE date > data_date AND daynight='day'`
 - Orphan night sweep = 把「該日無 day-session 但有 night-session」的 row 重 label
   到「之前最近有 day-session 的日期」。
 
-## 已知尚未實作（用戶決定不做）
+## 已知尚未實作 / 缺資料
 
-- 損益圖（Excel「損益圖」sheet 的 9 checkbox S1-S3/U1-U6 互斥邏輯）
-- 自動排程 / 定時 refresh
-- `op_legal_net` / `fut_pre_open_net` 兩欄位 Excel 公式不明（不是簡單 OI sum），
-  歷史值由 Excel migration 提供，refresh 暫不寫這兩欄。
+- 損益圖（Excel「損益圖」sheet 的 9 checkbox S1-S3/U1-U6 互斥邏輯）— 用戶決定不做
+- 自動排程 / 定時 refresh — 用戶決定不做
+- 2020-2023/05 段 daily_summary 缺 `twse_margin_amt_oku` / `tpex_margin_amt_oku`
+  / `twse_mkt_cap_chao` / `stock_fut_legal_net` — 進行中（FinMind backfill）。
+- `twse_mkt_cap_chao` 對 5 天前 → 找 FinMind 替代資料源中
+
+## 公式（v0.9.3 全 reverse-engineered）
+
+- `op_call_net` / `op_put_net` / `stock_fut_legal_net` =
+  外資 + 自營商 OI 淨口（**排除投信**，隱藏 Excel 慣例）
+- `op_cp_net` = `op_call_net` - `op_put_net`
+- `op_legal_net`（台指期 等效大台 OI 淨）=
+  外資+自營商 OI 淨 of (大台 + 小台/4 + 微台/20)
+  *微台 2022-03-28 launch，之前忽略*
+- `fut_pre_open_net`（開盤前部位）= `op_legal_net` + 同樣 components 的夜盤交易淨
+- `tx_close` = TX 近月收盤（`futDailyMarketReport` `commodity_id=TX` 第一筆）
+- `twse_margin_amt_oku` = 仟元 / 100000（仟元 → 億元）
+- `twse_mkt_cap_chao` = 億元 / 10000（億元 → 兆元）
+- `tpex_mkt_cap_chao` = 佰萬元 / 1,000,000（佰萬元 → 兆元）
