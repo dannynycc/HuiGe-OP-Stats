@@ -1,5 +1,33 @@
 # Changelog
 
+## [v0.10.1] - 2026-05-06 01:30
+
+### Fixed (用戶: For 開盤前看 第一個是空的 / 能不能自動一點)
+
+#### #1 最新 row 的 view_date NULL
+- Root cause: `/api/comprehensive` 從 op_legal 算 `next_map`,
+  最新 trading day 沒下一個 → next=None → frontend 「For (空) 開盤前看」
+- Fix: latest row 用 calendar fallback (`next weekday`, skip 週末)
+- 驗證: 2026-05-05 → view_date=2026-05-06 ✓
+
+#### #2 Refresh 後沒 auto-aggregate (用戶嫌手動)
+- 之前: `homeApi/mkt_cap` 只給 5 天, refresh 拿不到時 daily_summary 寫 NULL,
+  user 還要手動跑 `recompute_mktcap_interp.py` 才看得到. pct 也不會自動算.
+- Fix: `app/refresh.py` 加 `_post_refresh_aggregate(target_date)` hook
+  - 對該 date 若 mkt_cap NULL: 用 weekly anchor + TWII 比例 internal interp
+  - 寫 `mkt_cap_source = 'interp'`
+  - 重算 `twse_margin_pct = margin_amt_oku / (mkt_cap × 10000)`
+  - Idempotent — 'official' rows 不被覆蓋
+- 結果: 用戶每次按「Refresh 抓最新」自動完成 aggregate, 不用手動跑 script
+
+### Background TE/TF backfill 完成 (PID boy7b23dc → exit 0)
+- 2025-04-15 ~ 2026-05-05 段補完
+- Playwright verify 7 historical dates ALL PASS
+
+### Background started (PID 33669)
+- `backfill_credit_summary.py --from 2020-01-01 --to 2023-05-04`
+- 補 TWSE / TPEX 信用餘額 2020-2023/05 段 (809 dates, ~7 min)
+
 ## [v0.10.0] - 2026-05-06 01:18
 
 ### Fixed (用戶: 加權指數怎麼也缺那麼多)

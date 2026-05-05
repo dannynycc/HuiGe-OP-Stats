@@ -58,6 +58,16 @@ def refresh(target_date: str | None = None) -> dict[str, Any]:
 
     write_to_db(target_date, results)
 
+    # Auto post-process: if mkt_cap was NOT obtained from official source for
+    # this date (homeApi only gives 5-day window), interpolate it from the
+    # nearest mkt_cap_weekly anchor + TWII ratio. Idempotent — won't touch
+    # 'official' rows. Also recompute pct if we just got a new mkt_cap.
+    try:
+        _post_refresh_aggregate(target_date)
+    except Exception as e:
+        log.warning("post-refresh aggregate failed for %s: %r", target_date, e)
+        errors.append(f"post_refresh: {e!r}")
+
     elapsed = time.time() - started
     with connect() as con:
         con.execute(
@@ -71,6 +81,60 @@ def refresh(target_date: str | None = None) -> dict[str, Any]:
         "errors": errors,
         "ok": not errors,
     }
+
+
+def _post_refresh_aggregate(date_dash: str) -> None:
+    """For target_date: if twse_mkt_cap_chao still NULL, interpolate via
+    weekly anchor × (TWII_d / TWII_anchor). Then recompute margin_pct
+    (margin_balance / mkt_cap) so the view doesn't show 0% when raw data
+    just flowed in.
+    """
+    with connect() as con:
+        row = con.execute(
+            """SELECT twii_close, twse_mkt_cap_chao, mkt_cap_source,
+                      twse_margin_amt_oku, tpex_margin_amt_oku
+               FROM daily_summary WHERE date = ?""", (date_dash,)
+        ).fetchone()
+        if not row:
+            return
+        twii_d = row["twii_close"]
+        mkt_cap = row["twse_mkt_cap_chao"]
+        src = row["mkt_cap_source"]
+
+        # 1. Interpolate mkt_cap if NULL & TWII available
+        if mkt_cap is None and twii_d is not None:
+            anchor = con.execute(
+                """SELECT date, twse_mkt_cap_oku FROM mkt_cap_weekly
+                   WHERE date >= ? AND date < date(?, '+8 days')
+                   ORDER BY date LIMIT 1""", (date_dash, date_dash)
+            ).fetchone() or con.execute(
+                """SELECT date, twse_mkt_cap_oku FROM mkt_cap_weekly
+                   WHERE date < ? ORDER BY date DESC LIMIT 1""", (date_dash,)
+            ).fetchone()
+            if anchor:
+                anchor_twii = con.execute(
+                    "SELECT twii_close FROM daily_summary WHERE date = ?", (anchor[0],)
+                ).fetchone()
+                if anchor_twii and anchor_twii[0] is not None:
+                    new_chao = anchor[1] * (twii_d / anchor_twii[0]) / 10000.0
+                    con.execute(
+                        """UPDATE daily_summary
+                           SET twse_mkt_cap_chao = ?, mkt_cap_source = 'interp'
+                           WHERE date = ?""", (new_chao, date_dash)
+                    )
+                    mkt_cap = new_chao
+                    src = "interp"
+
+        # 2. Recompute pct from margin / mkt_cap
+        if mkt_cap and mkt_cap > 0:
+            if row["twse_margin_amt_oku"]:
+                pct = row["twse_margin_amt_oku"] / (mkt_cap * 10000)  # both in 億
+                con.execute(
+                    "UPDATE daily_summary SET twse_margin_pct = ? WHERE date = ?",
+                    (pct, date_dash),
+                )
+        log.info("post-refresh aggregate done: %s mkt_cap=%s src=%s",
+                 date_dash, mkt_cap, src)
 
 
 def _safe_rows(payload: Any) -> list[dict]:

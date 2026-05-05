@@ -104,6 +104,7 @@ def api_timeseries() -> dict[str, Any]:
 @app.get("/api/comprehensive")
 def api_comprehensive() -> dict[str, Any]:
     """綜合整理 view — daily_summary 全部 rows + 每天對應的 view_date (= next trading day)."""
+    import datetime as _dt
     with connect() as con:
         # day-session dates (= real trading days), used to derive next-trading-day
         trading_dates = [r[0] for r in con.execute(
@@ -112,10 +113,24 @@ def api_comprehensive() -> dict[str, Any]:
         rows = [dict(r) for r in con.execute(
             "SELECT * FROM daily_summary ORDER BY date"
         )]
-    # Compute view_date = next trading day after each row's date
-    next_map: dict[str, str | None] = {}
+
+    def _next_weekday_fallback(d_iso: str) -> str:
+        """For the LATEST row, DB has no next trading day yet — fall back to
+        the next weekday (Mon-Fri). Holiday-skip not done here; the actual
+        upcoming trading day will be filled when next refresh runs and
+        op_legal gets a new row."""
+        d = _dt.date.fromisoformat(d_iso)
+        nxt = d + _dt.timedelta(days=1)
+        while nxt.weekday() >= 5:  # Sat=5, Sun=6
+            nxt += _dt.timedelta(days=1)
+        return nxt.isoformat()
+
+    next_map: dict[str, str] = {}
     for i, d in enumerate(trading_dates):
-        next_map[d] = trading_dates[i + 1] if i + 1 < len(trading_dates) else None
+        if i + 1 < len(trading_dates):
+            next_map[d] = trading_dates[i + 1]
+        else:
+            next_map[d] = _next_weekday_fallback(d)
     for r in rows:
         r["view_date"] = next_map.get(r["date"])
     return {"rows": rows}
