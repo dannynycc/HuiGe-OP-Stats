@@ -123,7 +123,10 @@ start.bat   # 背景啟動 uvicorn :8765
 stop.bat    # 停掉
 ```
 
-瀏覽器開 `http://localhost:8765`。
+瀏覽器：
+- `http://localhost:8765/` — 主表「For X 開盤前看」(柴柴 6 列彙整)
+- `http://localhost:8765/comprehensive` — **綜合整理 view**：完整 timeseries
+  table，復刻 Excel「綜合整理」 sheet（v0.9 起）
 
 ## Backfill (歷史資料抓取)
 

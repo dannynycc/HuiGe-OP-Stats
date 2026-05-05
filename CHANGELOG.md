@@ -1,5 +1,38 @@
 # Changelog
 
+## [v0.9.0] - 2026-05-05 21:51
+
+### Added — 綜合整理 view
+- 新 page `/comprehensive` — 復刻 Excel「綜合整理」 sheet 的 timeseries view。
+- 新 endpoint `/api/comprehensive` — 回傳 `daily_summary` 全 rows + 每天對應的
+  `view_date`（= 之後最近一個 trading day, 由 DB 動態算出）。
+- 主表 header 加「綜合整理 →」link。
+
+### Layout decisions (per Excel sheet110 inspect)
+- 15 cols: A,B (日期 labels) + C-I (台指期/選擇權/股期 數字) + J-K (融資佔比%)
+  + L-M (融資餘額億元) + N-O (總市值兆元)
+- 2-row header: R1 group label (台指期/選擇權未平倉/股票期貨/融資餘額佔市值比/
+  融資餘額/總市值) + R2 column header
+- **無邊框、無底色、無 zebra** — pure white per Excel
+- Sticky thead (mirrors Excel frozen pane ySplit=2)
+- numFmt 各欄精確 mirror Excel:
+  - C 欄 (日盤收盤): `#,##0` 千分位無括號
+  - D-I (期權淨部位等): `#,##0_);[Red](#,##0)` 千分位 + 紅色負括號
+  - J-K (融資佔市值比): `0.0000%` 4-位小數百分比
+  - L-M (融資餘額億元): accounting `#,##0`
+  - N-O (總市值兆元): `0.00_);[Red](0.00)` 2-位小數紅色負括號
+- 字體標楷體 sz=12 (16px), 不 bold (mirror Excel font)
+- 倒序排列 (newest first) 方便 daily 看
+- 範圍涵蓋「每個 trading day 都一行」(115 dates from 11/2025 onward, 比 Excel
+  102 entries 多覆蓋一些 Excel 跳過的日子如 4/13)
+
+### Notes
+- Excel cells 用 `=INDIRECT("'sheet_name'!cell_ref")` 跨 sheet 抓彙整 (R237-R245
+  area)。我的版本不需 INDIRECT，直接從 daily_summary 表 query。
+- 部分歷史 row (e.g. 2026/4/13) 有少數欄位 NULL — 因為 Excel migration 沒覆蓋
+  那天 (Excel sheet 跳過)，且 mkt_cap endpoint only 5-day window 不能 backfill
+  歷史 twse_mkt_cap_chao。Display 留空，不偽造數字。
+
 ## [v0.8.0] - 2026-05-05 21:31
 
 ### Added (兩個用戶要的新功能)

@@ -101,6 +101,31 @@ def api_timeseries() -> dict[str, Any]:
     return {"rows": rows}
 
 
+@app.get("/api/comprehensive")
+def api_comprehensive() -> dict[str, Any]:
+    """綜合整理 view — daily_summary 全部 rows + 每天對應的 view_date (= next trading day)."""
+    with connect() as con:
+        # day-session dates (= real trading days), used to derive next-trading-day
+        trading_dates = [r[0] for r in con.execute(
+            "SELECT DISTINCT date FROM op_legal WHERE daynight='day' ORDER BY date"
+        )]
+        rows = [dict(r) for r in con.execute(
+            "SELECT * FROM daily_summary ORDER BY date"
+        )]
+    # Compute view_date = next trading day after each row's date
+    next_map: dict[str, str | None] = {}
+    for i, d in enumerate(trading_dates):
+        next_map[d] = trading_dates[i + 1] if i + 1 < len(trading_dates) else None
+    for r in rows:
+        r["view_date"] = next_map.get(r["date"])
+    return {"rows": rows}
+
+
+@app.get("/comprehensive")
+def comprehensive_page() -> FileResponse:
+    return FileResponse(STATIC / "comprehensive.html")
+
+
 @app.get("/api/dashboard")
 def api_dashboard(view_date: str | None = Query(default=None),
                   date: str | None = Query(default=None)) -> dict[str, Any]:
