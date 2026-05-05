@@ -113,25 +113,29 @@
       <col style="width:6%">    <!-- O: 上櫃兆 -->
     </colgroup>
     <thead>
-      <!-- R1: group header (colspan merged) -->
+      <!-- R1: group header — only the actual group cells get colspan
+           (per user: 股票期貨 / For 開盤前看 / 前一日日盤Data 不要合併儲存格) -->
       <tr>
-        <th rowspan="2">For 開盤前看</th>
-        <th rowspan="2">前一日日盤Data</th>
+        <th></th>
+        <th></th>
         <th colspan="2">台指期</th>
         <th colspan="4">選擇權未平倉</th>
-        <th rowspan="2">股票期貨<br><span style="font-weight:normal;font-size:0.85em">法人淨部位</span></th>
+        <th>股票期貨</th>
         <th colspan="2">融資餘額佔市值比</th>
         <th colspan="2">融資餘額</th>
         <th colspan="2">總市值</th>
       </tr>
-      <!-- R2: column header (omit cells already covered by R1 rowspan=2) -->
+      <!-- R2: column header (15 cells, full row) -->
       <tr>
+        <th>For 開盤前看</th>
+        <th>前一日日盤Data</th>
         <th>日盤收盤</th>
         <th>法人淨部位</th>
         <th>法人買權CALL</th>
         <th>法人賣權PUT</th>
         <th>法人CP合計多空</th>
         <th>開盤前多空</th>
+        <th>法人淨部位</th>
         <th>上市</th>
         <th>上櫃</th>
         <th>上市(億元)</th>
