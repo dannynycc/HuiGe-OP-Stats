@@ -1,5 +1,20 @@
 # Changelog
 
+## [v0.9.6] - 2026-05-06 00:14
+
+### Fixed
+- **fut_price 價格欄位被截掉小數** — 用戶看到 TE/TF close 都沒小數
+  - 例 5/5 TE 真實 = 2658.65，DB 寫 2658；TF 真實 = 2505.8，DB 寫 2505
+  - Root cause: `_to_int` 對 price columns 用 `int(float(s))` 強制截斷
+  - Fix: 加 `_to_float` helper，scraper 對 open/high/low/close/settle/best_bid/
+    best_ask 全改用 float；vol/oi/lots 維持 int
+  - SQLite INTEGER affinity 對 REAL 值會保留浮點，schema 不需 ALTER
+  - 重新 fetch 5/4 + 5/5：TX 41031/41035, TE 2658.2/2658.65, TF 2493/2505.8
+
+### Re-running
+- 跑中的 v0.9.4 backfill 用舊 _to_int 已 kill；重啟 (--from 2023-05-05) 用新 _to_float
+- 預估 727 trading days × 3s = ~36 min 跑完
+
 ## [v0.9.5] - 2026-05-06 00:11
 
 ### Fixed

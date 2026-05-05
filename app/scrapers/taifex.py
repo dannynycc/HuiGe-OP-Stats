@@ -73,6 +73,23 @@ def _to_int(v: Any) -> int | None:
         return None
 
 
+def _to_float(v: Any) -> float | None:
+    """For price columns — TE/TF have decimals (e.g. TF 2505.8). _to_int
+    would truncate to 2505 which is wrong. Use this for open/high/low/close/
+    settle/best_bid/best_ask in fut_price."""
+    if v is None or pd.isna(v):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).replace(",", "").strip()
+    if s in ("", "-"):
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
 def _parse_legal_table(html: str, expect_oi: bool) -> list[dict]:
     """
     Parse the 三大法人 table for both OP and FUT pages.
@@ -264,18 +281,19 @@ def fetch_fut_price(query_date: str | None = None,
         rows.append({
             "contract": contract,
             "expiry": expiry,
-            "open_": _to_int(r.iloc[2]),
-            "high": _to_int(r.iloc[3]),
-            "low": _to_int(r.iloc[4]),
-            "close": _to_int(r.iloc[5]),
+            # price columns must be float — TE/TF have decimals (.5/.65 ticks)
+            "open_": _to_float(r.iloc[2]),
+            "high": _to_float(r.iloc[3]),
+            "low": _to_float(r.iloc[4]),
+            "close": _to_float(r.iloc[5]),
             "change_str": str(r.iloc[6]).strip() if not pd.isna(r.iloc[6]) else None,
             "change_pct_str": str(r.iloc[7]).strip() if not pd.isna(r.iloc[7]) else None,
             "ah_vol": _to_int(r.iloc[8]),
             "day_vol": _to_int(r.iloc[9]),
             "total_vol": _to_int(r.iloc[10]),
-            "settle": _to_int(r.iloc[11]),
+            "settle": _to_float(r.iloc[11]),
             "oi": _to_int(r.iloc[12]),
-            "best_bid": _to_int(r.iloc[13]),
-            "best_ask": _to_int(r.iloc[14]),
+            "best_bid": _to_float(r.iloc[13]),
+            "best_ask": _to_float(r.iloc[14]),
         })
     return {"actual_date": actual, "rows": rows}
