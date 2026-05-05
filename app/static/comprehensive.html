@@ -37,65 +37,53 @@
     font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
     font-size: 13px;
     background: #fff;
-    position: sticky; top: 0; z-index: 10;
+    /* Removed sticky — let thead take top so 2 header rows can sticky-pin without overlap */
   }
   header h1 { margin: 0; font-size: 16px; font-weight: 600; }
   header a { color: #2c5aa0; text-decoration: none; }
   header a:hover { text-decoration: underline; }
 
   .table-wrap {
-    padding: 14px 16px 40px;
+    padding: 10px 16px 30px;     /* 右側留白避免 border 被 viewport 切掉 */
     overflow-x: auto;
+    box-sizing: border-box;
   }
   table.zonghe {
     border-collapse: collapse;
     margin: 0 auto;
     font-family: inherit;
-    font-size: 16px;
+    font-size: 14px;
+    width: 100%;
+    table-layout: auto;
   }
   table.zonghe th, table.zonghe td {
-    padding: 3px 8px;
+    padding: 3px 5px;
     white-space: nowrap;
     text-align: right;
     font-weight: normal;
     color: var(--fg);
     background: #fff;
-    /* No borders by default, mirror Excel sheet which has none */
-    border: none;
+    border: 1px solid #d0d0d0;  /* 淺灰框 (per user "顏色不用太深") */
   }
-  /* Header rows — sticky (frozen pane ySplit=2 in Excel) */
+  /* Header rows — sticky to viewport (frozen pane ySplit=2 in Excel) */
   table.zonghe thead th {
     background: var(--header-bg);
     color: var(--fg);
     text-align: center;
-    border-bottom: 1px solid #999;
+    border: 1px solid #888;
     position: sticky;
-    z-index: 2;
+    z-index: 3;
   }
+  /* Group row (R1) sticks at viewport top; column row (R2) sticks below it */
   table.zonghe thead tr:nth-child(1) th { top: 0; }
-  table.zonghe thead tr:nth-child(2) th { top: 26px; }
+  table.zonghe thead tr:nth-child(2) th { top: 28px; }
   /* Excel has no zebra stripe — pure white. Hover only for navigation help. */
   table.zonghe tbody tr:hover td { background: #fff7d6; }
 
   /* Negative values get red — qualify selector to beat .zonghe td { color } (0,1,2) */
   table.zonghe td.neg { color: var(--neg-text); }
-  /* Column-specific widths approximating Excel col widths */
-  /* (Excel char-units × 7px ≈ pixels, kept proportional) */
-  .col-A { min-width: 80px; }
-  .col-B { min-width: 96px; }
-  .col-C { min-width: 76px; }
-  .col-D { min-width: 80px; }
-  .col-E { min-width: 92px; }
-  .col-F { min-width: 84px; }
-  .col-G { min-width: 100px; }
-  .col-H { min-width: 80px; }
-  .col-I { min-width: 86px; }
-  .col-J { min-width: 80px; }
-  .col-K { min-width: 80px; }
-  .col-L { min-width: 92px; }
-  .col-M { min-width: 92px; }
-  .col-N { min-width: 80px; }
-  .col-O { min-width: 80px; }
+  /* col widths via <colgroup> — 確保 group 下的 上市/上櫃 sub-col 等寬 */
+  table.zonghe { table-layout: fixed; }
 </style>
 </head>
 <body>
@@ -107,36 +95,43 @@
 
 <div class="table-wrap">
   <table class="zonghe" id="zonghe">
+    <colgroup>
+      <col style="width:8%">    <!-- A: For 開盤前看 -->
+      <col style="width:8%">    <!-- B: 前一日日盤Data -->
+      <col style="width:6%">    <!-- C: 台指期 日盤收盤 -->
+      <col style="width:6%">    <!-- D: 台指期 法人淨部位 -->
+      <col style="width:6%">    <!-- E: CALL -->
+      <col style="width:6%">    <!-- F: PUT -->
+      <col style="width:6%">    <!-- G: CP -->
+      <col style="width:6%">    <!-- H: 開盤前多空 -->
+      <col style="width:8%">    <!-- I: 股票期貨 -->
+      <col style="width:6%">    <!-- J: 上市佔比 -->
+      <col style="width:6%">    <!-- K: 上櫃佔比 -->
+      <col style="width:6%">    <!-- L: 上市億 -->
+      <col style="width:6%">    <!-- M: 上櫃億 -->
+      <col style="width:6%">    <!-- N: 上市兆 -->
+      <col style="width:6%">    <!-- O: 上櫃兆 -->
+    </colgroup>
     <thead>
-      <!-- R1: group header (no merge, mirror Excel exactly) -->
+      <!-- R1: group header (colspan merged) -->
       <tr>
-        <th class="col-A"></th>
-        <th class="col-B"></th>
-        <th class="col-C">台指期</th>
-        <th class="col-D"></th>
-        <th class="col-E">選擇權未平倉</th>
-        <th class="col-F"></th>
-        <th class="col-G"></th>
-        <th class="col-H"></th>
-        <th class="col-I">股票期貨</th>
-        <th class="col-J">融資餘額佔市值比</th>
-        <th class="col-K"></th>
-        <th class="col-L">融資餘額</th>
-        <th class="col-M"></th>
-        <th class="col-N">總市值</th>
-        <th class="col-O"></th>
+        <th rowspan="2">For 開盤前看</th>
+        <th rowspan="2">前一日日盤Data</th>
+        <th colspan="2">台指期</th>
+        <th colspan="4">選擇權未平倉</th>
+        <th rowspan="2">股票期貨<br><span style="font-weight:normal;font-size:0.85em">法人淨部位</span></th>
+        <th colspan="2">融資餘額佔市值比</th>
+        <th colspan="2">融資餘額</th>
+        <th colspan="2">總市值</th>
       </tr>
-      <!-- R2: column header -->
+      <!-- R2: column header (omit cells already covered by R1 rowspan=2) -->
       <tr>
-        <th>For 開盤前看</th>
-        <th>前一日日盤Data</th>
         <th>日盤收盤</th>
         <th>法人淨部位</th>
         <th>法人買權CALL</th>
         <th>法人賣權PUT</th>
         <th>法人CP合計多空</th>
         <th>開盤前多空</th>
-        <th>法人淨部位</th>
         <th>上市</th>
         <th>上櫃</th>
         <th>上市(億元)</th>

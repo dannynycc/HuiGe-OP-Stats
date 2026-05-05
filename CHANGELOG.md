@@ -1,5 +1,51 @@
 # Changelog
 
+## [v0.9.3] - 2026-05-05 23:35
+
+### Fixed (用戶連續抓到 3 個問題)
+
+#### 1. 16 個 holiday-前一交易日 漏抓 night session
+- 例：2026-04-30 (勞動節前)、2024-04-30、2024-10-09 (國慶前) 等
+- Root cause：`_next_business_day` 只 skip weekend，holiday 前一交易日的 night
+  session = T 15:00 ~ next-trading-day 05:00 跨假，但 fetch 時 queryDate=T+1
+  正好打到 holiday → endpoint 0 rows → 永遠沒寫
+- Fix：`_next_business_day` 改用 DB lookup（next trading day with day-session），
+  holiday-aware；對 16 個漏抓 dates 個別 re-fetch 補進 op_legal/fut_legal night
+- Verify: 16/16 都成功補回
+
+#### 2. daily_summary 對歷史段缺 row + op_legal_net / fut_pre_open_net 永遠空
+- Root cause #1：FinMind backfill 直接寫 raw 表，不經過 refresh()，daily_summary
+  對 2020-2023/05 段沒 row。
+- Root cause #2：我之前說 op_legal_net / fut_pre_open_net 「公式不明」是錯的。
+  Excel 的 daily_summary 用 `=INDIRECT('sheet'!E$240)` / `J$243` 從每日 sheet 的
+  R240/R243 (= 主表的「台指期淨部位」+「開盤前部位」) 抓的。**那就是主表已經算
+  的公式**：台指期等效大台 OI 淨 (= 大台 + 小台/4 + 微台/20) + 夜盤交易淨。
+- Fix：寫 `scripts/recompute_daily_summary.py` 從 raw tables 重算所有 1,536 天的
+  daily_summary，含 op_legal_net + fut_pre_open_net 兩欄。
+- Verify: 2026-04-14 重算 = -44,447.15 / 8,777，跟 Excel 4_15 sheet R104 ground
+  truth 完全 1:1 對齊。
+
+#### 3. 綜合整理 view UI
+- 加淺灰框（`#d0d0d0`，per user "顏色不用太深"）
+- font 16px → 14px、padding 收緊，1920×1080 viewport 100% 縮放可 fit 完整 15 cols
+- table-wrap right padding 加大避免最右 border 被切
+
+#### 4. margin panel 不顯示小數點
+- `fmtOku()` 改 `Math.round(v).toLocaleString()` (DB 還是 raw decimal)
+
+#### 5. 綜合整理 group header 真 merge + sticky 置頂
+- R1 group header 用 colspan: 「台指期」 colspan=2、「選擇權未平倉」 colspan=4、
+  「融資餘額佔市值比」/「融資餘額」/「總市值」各 colspan=2
+- 「For 開盤前看」/「前一日日盤Data」/「股票期貨」用 rowspan=2 跨頂兩 row
+- `<colgroup>` 設 explicit %widths: 上市/上櫃 sub-col 等寬 (6%/6%)
+- `table-layout: fixed` 確保 colgroup widths 生效
+- thead 兩 row sticky 到 viewport top (移除 page header sticky 避免衝突)
+
+### Added
+- `scripts/recompute_daily_summary.py` — 從 raw tables 重算 daily_summary，
+  歷史 backfill 後可一鍵 reconstruct
+- `scripts/fix_missing_night.py` — 找出 missing night sessions 並 holiday-aware 補抓
+
 ## [v0.9.2] - 2026-05-05 23:14
 
 ### Fixed (用戶抓到 refresh button 沒生效)

@@ -76,7 +76,8 @@ const tdCost = tdMinus;
 
 function fmtOku(v) {
   if (v == null || isNaN(v)) return "—";
-  return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Display rounded integer (DB still keeps raw decimals — display-only round).
+  return Math.round(v).toLocaleString("en-US");
 }
 
 function render(payload) {

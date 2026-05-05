@@ -136,10 +136,31 @@ def _parse_legal_table(html: str, expect_oi: bool) -> list[dict]:
 
 
 def _next_business_day(query_date_slash: str) -> str:
-    """'2026/04/14' -> '2026/04/15' (skip weekends)."""
+    """'2026/04/14' -> next trading day, **holiday-aware** via DB lookup.
+
+    Falls back to next weekday if DB lookup fails (e.g. before DB is built).
+    Holiday-aware needed because TAIFEX night endpoint uses session-end date
+    as queryDate; cross-holiday sessions must point at the next trading day,
+    not just the next weekday.
+    """
     import datetime as dt
     y, m, d = (int(x) for x in query_date_slash.split("/"))
-    nxt = dt.date(y, m, d) + dt.timedelta(days=1)
+    base = dt.date(y, m, d)
+    # Try DB lookup first (only available when called from app context)
+    try:
+        from ..db import connect
+        with connect() as con:
+            row = con.execute(
+                "SELECT MIN(date) FROM op_legal WHERE date > ? AND daynight='day'",
+                (base.isoformat(),)
+            ).fetchone()
+        if row and row[0]:
+            y2, m2, d2 = row[0].split("-")
+            return f"{y2}/{m2}/{d2}"
+    except Exception:
+        pass
+    # Fallback: next weekday (holiday will be re-handled later via sweep)
+    nxt = base + dt.timedelta(days=1)
     while nxt.weekday() >= 5:
         nxt += dt.timedelta(days=1)
     return f"{nxt.year:04d}/{nxt.month:02d}/{nxt.day:02d}"
