@@ -1,6 +1,8 @@
-# 法人OP日夜盤數據
+# 法人OP日夜盤數據 (HuiGe-OP-Stats)
 
 期交所三大法人選擇權/期貨日夜盤數據 + 上市/上櫃信用交易彙整 — 網頁版（取代輝哥 Excel）。
+
+版本紀錄見 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 目的
 
