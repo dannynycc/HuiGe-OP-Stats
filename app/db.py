@@ -78,8 +78,19 @@ CREATE TABLE IF NOT EXISTS daily_summary (
     tpex_margin_pct REAL,
     twse_margin_amt_oku REAL,         -- 億元
     tpex_margin_amt_oku REAL,         -- 億元
-    twse_mkt_cap_chao REAL,           -- 兆元
-    tpex_mkt_cap_chao REAL            -- 兆元
+    twse_mkt_cap_chao REAL,           -- 兆元 (interpolated 時 mkt_cap_source='interp')
+    tpex_mkt_cap_chao REAL,           -- 兆元
+    twii_close REAL,                  -- 加權指數 (FMTQIK 第 5 欄)
+    mkt_cap_source TEXT               -- 'official' (TWSE homeApi/週報) / 'interp' (TWII fit) / NULL
+);
+
+-- TWSE 市值週報 (從 https://www.twse.com.tw/zh/trading/statistics/week.html 下載
+-- 的 xls 匯入). 每週末一筆「初步估計整體股票總市值(億元)」, 從 2005-09-02 起.
+-- date = 該週週末日期 (通常週五, 遇放假往前推到該週最後 trading day).
+CREATE TABLE IF NOT EXISTS mkt_cap_weekly (
+    date TEXT PRIMARY KEY,            -- 週末日期 YYYY-MM-DD
+    twse_mkt_cap_oku REAL,            -- 億元
+    source TEXT                        -- 'twse_weekly_xls' 等
 );
 
 CREATE TABLE IF NOT EXISTS refresh_log (

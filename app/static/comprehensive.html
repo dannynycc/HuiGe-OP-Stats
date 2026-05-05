@@ -114,40 +114,43 @@
 <div class="table-wrap">
   <table class="zonghe" id="zonghe">
     <colgroup>
-      <col style="width:8%">    <!-- A: For 開盤前看 -->
-      <col style="width:8%">    <!-- B: 前一日日盤Data -->
-      <col style="width:6%">    <!-- C: 台指期 日盤收盤 -->
-      <col style="width:6%">    <!-- D: 台指期 法人淨部位 -->
-      <col style="width:6%">    <!-- E: CALL -->
-      <col style="width:6%">    <!-- F: PUT -->
-      <col style="width:6%">    <!-- G: CP -->
-      <col style="width:6%">    <!-- H: 開盤前多空 -->
-      <col style="width:8%">    <!-- I: 股票期貨 -->
-      <col style="width:6%">    <!-- J: 上市佔比 -->
-      <col style="width:6%">    <!-- K: 上櫃佔比 -->
-      <col style="width:6%">    <!-- L: 上市億 -->
-      <col style="width:6%">    <!-- M: 上櫃億 -->
-      <col style="width:6%">    <!-- N: 上市兆 -->
-      <col style="width:6%">    <!-- O: 上櫃兆 -->
+      <col style="width:7%">    <!-- A: For 開盤前看 -->
+      <col style="width:7%">    <!-- B: 前一日日盤Data -->
+      <col style="width:6%">    <!-- C: 加權指數 -->
+      <col style="width:6%">    <!-- D: 台指期 日盤收盤 -->
+      <col style="width:6%">    <!-- E: 台指期 法人淨部位 -->
+      <col style="width:6%">    <!-- F: CALL -->
+      <col style="width:6%">    <!-- G: PUT -->
+      <col style="width:6%">    <!-- H: CP -->
+      <col style="width:6%">    <!-- I: 開盤前多空 -->
+      <col style="width:7%">    <!-- J: 股票期貨 -->
+      <col style="width:5%">    <!-- K: 上市佔比 -->
+      <col style="width:5%">    <!-- L: 上櫃佔比 -->
+      <col style="width:5%">    <!-- M: 上市億 -->
+      <col style="width:5%">    <!-- N: 上櫃億 -->
+      <col style="width:5%">    <!-- O: 上市兆 -->
+      <col style="width:5%">    <!-- P: 上櫃兆 -->
     </colgroup>
     <thead>
-      <!-- R1: group header — only the actual group cells get colspan
-           (per user: 股票期貨 / For 開盤前看 / 前一日日盤Data 不要合併儲存格) -->
+      <!-- R1: group header. 加權指數 + 台指期日盤收盤 兩個都是「指數」性質 →
+           合併 group「指數」colspan=2; 台指期 法人淨部位 自己一格 -->
       <tr>
         <th></th>
         <th></th>
-        <th colspan="2">台指期</th>
+        <th colspan="2">指數收盤</th>
+        <th>台指期</th>
         <th colspan="4">選擇權未平倉</th>
         <th>股票期貨</th>
         <th colspan="2">融資餘額佔市值比</th>
         <th colspan="2">融資餘額</th>
         <th colspan="2">總市值</th>
       </tr>
-      <!-- R2: column header (15 cells, full row) -->
+      <!-- R2: column header (16 cells, full row) -->
       <tr>
         <th>For 開盤前看</th>
         <th>前一日日盤Data</th>
-        <th>日盤收盤</th>
+        <th>加權指數</th>
+        <th>台指期</th>
         <th>法人淨部位</th>
         <th>法人買權CALL</th>
         <th>法人賣權PUT</th>
@@ -163,7 +166,7 @@
       </tr>
     </thead>
     <tbody id="zhBody">
-      <tr><td colspan="15" style="text-align:center;color:var(--muted);padding:30px">(載入中…)</td></tr>
+      <tr><td colspan="16" style="text-align:center;color:var(--muted);padding:30px">(載入中…)</td></tr>
     </tbody>
   </table>
 </div>
@@ -192,6 +195,15 @@ function fmtPlainInt(v) {
   if (v == null || isNaN(v)) return "";
   const n = Math.round(v);
   return n.toLocaleString("en-US");
+}
+// 加權指數: 千分位 + 2 位小數
+function fmtTwii(v) {
+  if (v == null || isNaN(v)) return "";
+  return v.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+function tdTwii(v) {
+  if (v == null) return "<td></td>";
+  return `<td>${fmtTwii(v)}</td>`;
 }
 // 4-位小數百分比 — Excel 0.0000%
 function fmtPct(v) {
@@ -250,7 +262,7 @@ async function load() {
   const rows = r.rows || [];
   if (!rows.length) {
     document.getElementById("zhBody").innerHTML =
-      `<tr><td colspan="15" style="text-align:center;color:var(--muted);padding:30px">(無資料)</td></tr>`;
+      `<tr><td colspan="16" style="text-align:center;color:var(--muted);padding:30px">(無資料)</td></tr>`;
     return;
   }
   // Reverse (newest first) so latest 日期在最上
@@ -259,6 +271,7 @@ async function load() {
     <tr>
       <td style="text-align:left">${fmtMD(r.view_date)}</td>
       <td style="text-align:left">${fmtMD(r.date)}</td>
+      ${tdTwii(r.twii_close)}
       ${tdPlainInt(r.tx_close)}
       ${tdParenInt(r.op_legal_net)}
       ${tdParenInt(r.op_call_net)}

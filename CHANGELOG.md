@@ -1,5 +1,52 @@
 # Changelog
 
+## [v0.9.7] - 2026-05-06 00:42
+
+### Added — historical 上市總市值 backfill (用戶提供 source)
+
+#### TWSE 市值週報 import
+- 用戶下載 `https://www.twse.com.tw/zh/trading/statistics/week.html` 的 `week1-new.xls`
+  (1059 週末筆，2005-09-02 ~ 2026-04-30)，import 成新 DB 表 `mkt_cap_weekly`
+
+#### 加權指數 (TWII) 每日 backfill
+- TWSE `MI_5MINS_HIST?date=YYYYMMDD` endpoint 每月 1 call 拿整月 OHLC
+- 寫進 `daily_summary.twii_close` (新加的 column)
+- 結果：50/77 月份 OK (2020-01 ~ 2024-02)、27 個月份被 WAF rate-limit 阻擋
+  (2024-03 ~ 2026-05) — 等 ban lift 補抓
+
+#### Daily mkt_cap 內插
+- 新 script `recompute_mktcap_interp.py`
+- 公式：`daily_mkt_cap = weekly_anchor.oku × (TWII_d / TWII_anchor)`
+- 寫 960 interp rows，新欄位 `mkt_cap_source` 區分 `'official'` / `'interp'` / NULL
+- 已有的 115 official rows 保護不被覆蓋
+- Sanity check: 2022-04-01 = weekly anchor 自己, ratio=1.0, daily mkt_cap = 54.69 兆 ✓
+
+### Schema migration (live DB)
+- `daily_summary` 加 `twii_close REAL` + `mkt_cap_source TEXT`
+- 新表 `mkt_cap_weekly (date PK, twse_mkt_cap_oku REAL, source TEXT)`
+- 自動 tag 既有非 NULL `twse_mkt_cap_chao` 為 `'official'` (115 rows)
+
+### UI
+- `app/static/comprehensive.html`：加「加權指數」column 在「台指期 日盤收盤」之前
+  - R1 group「指數收盤」 colspan=2 涵蓋 加權指數 + 台指期
+  - colgroup 重排 16 cols (was 15)，sub-col 等寬
+  - JS 多 `fmtTwii` (千分位 + 2 位小數) + `tdTwii` helpers
+- `app/dashboard.py`：API payload 多 `twii_close` + `margin.mkt_cap_source`
+
+### Coverage 進度
+
+| 年 | official | interp | NULL | total |
+|---|---|---|---|---|
+| 2020 | 0 | 222 | 23 | 245 |
+| 2021 | 0 | 222 | 22 | 244 |
+| 2022 | 0 | 246 | 0 | 246 |
+| 2023 | 1 | 238 | 0 | 239 |
+| 2024 | 2 | 32 | 209 | 243 |
+| 2025 | 43 | 0 | 200 | 243 |
+| 2026 | 69 | 0 | 8 | 77 |
+
+2024-03+ NULL 等 WAF ban 解開後 retry TWII backfill + 重跑 interp 即可補完。
+
 ## [v0.9.6] - 2026-05-06 00:14
 
 ### Fixed

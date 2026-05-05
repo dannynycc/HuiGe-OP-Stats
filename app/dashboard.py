@@ -188,12 +188,13 @@ def build_dashboard(date: str) -> dict[str, Any]:
 
     tx_close = next((r["close_price"] for r in out_rows if r["product"] == "台指期"), None)
 
-    # 信用交易 — 上市/上櫃融資餘額 (億元), 從 daily_summary 取
+    # 信用交易 — 上市/上櫃融資餘額 (億元), 從 daily_summary 取 + 加權指數
     with connect() as con:
         ds = con.execute("""
             SELECT twse_margin_amt_oku, tpex_margin_amt_oku,
                    twse_mkt_cap_chao, tpex_mkt_cap_chao,
-                   twse_margin_pct, tpex_margin_pct
+                   twse_margin_pct, tpex_margin_pct,
+                   twii_close, mkt_cap_source
             FROM daily_summary WHERE date = ?
         """, (date,)).fetchone()
     margin = {
@@ -203,12 +204,15 @@ def build_dashboard(date: str) -> dict[str, Any]:
         "tpex_mkt_cap_chao": ds["tpex_mkt_cap_chao"] if ds else None,
         "twse_margin_pct": ds["twse_margin_pct"] if ds else None,
         "tpex_margin_pct": ds["tpex_margin_pct"] if ds else None,
+        "mkt_cap_source": ds["mkt_cap_source"] if ds else None,
     }
+    twii_close = ds["twii_close"] if ds else None
 
     return {
         "date": date,
         "view_date": view_date,
         "rows": out_rows,
         "tx_close": tx_close,
+        "twii_close": twii_close,
         "margin": margin,
     }

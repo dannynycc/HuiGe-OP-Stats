@@ -56,12 +56,14 @@ build_dashboard() 套 Excel 公式 (排除投信，等效大台/電/金、selecc
 POST body: `queryDate=YYYY/MM/DD&commodityId=&MarketCode=0&queryType=1`
 （fut_price 的 commodity_id：`TX` / `TE` / `TF`，三個 contract 都進同一張表，`contract` 欄區分）
 
-### TWSE（3）
+### TWSE（5）
 | URL | 編碼 | 用途 |
 |---|---|---|
 | `twse.com.tw/exchangeReport/MI_MARGN?response=csv&date=YYYYMMDD&selectType=ALL` | Big5 | 上市信用交易 |
 | `twse.com.tw/rwd/zh/afterTrading/FMTQIK?date=YYYYMMDD&response=json` | UTF-8 JSON | 上市成交金額 |
-| `twse.com.tw/rwd/zh/homeApi/mkt_cap` | UTF-8 JSON | 上市總市值 |
+| `twse.com.tw/rwd/zh/homeApi/mkt_cap` | UTF-8 JSON | 上市總市值 (**只回最近 5 天**) |
+| `twse.com.tw/rwd/zh/TAIEX/MI_5MINS_HIST?date=YYYYMMDD&response=json` | UTF-8 JSON | 加權指數 OHLC (整月) |
+| `twse.com.tw/zh/trading/statistics/week.html` (xls 下載) | xls | 市值週報 (週頻、2005-09 起) |
 
 ### TPEX（3）
 | URL | 編碼 |
@@ -187,8 +189,29 @@ Excel 慣例。已驗證 14 個 cross-holiday absorbing dates 全部 day=30 nigh
 - 損益圖（Excel「損益圖」sheet 的 9 checkbox S1-S3/U1-U6 互斥邏輯）— 用戶決定不做
 - 自動排程 / 定時 refresh — 用戶決定不做
 - 2020-2023/05 段 daily_summary 缺 `twse_margin_amt_oku` / `tpex_margin_amt_oku`
-  / `twse_mkt_cap_chao` / `stock_fut_legal_net` — 進行中（FinMind backfill）。
-- `twse_mkt_cap_chao` 對 5 天前 → 找 FinMind 替代資料源中
+  / `stock_fut_legal_net` — 進行中（FinMind backfill）
+- `twse_mkt_cap_chao` historical: 用週報 + TWII 內插補回；2024-03+ 段等 TWSE
+  WAF ban lift 後 retry TWII
+
+## 上市總市值 (twse_mkt_cap_chao) 資料策略 (v0.9.7)
+
+公開 endpoint `homeApi/mkt_cap` 只回最近 5 天 → 歷史靠下面組合補：
+
+1. **TWSE 市值週報 .xls** (`mkt_cap_weekly` 表): 週頻、2005-09 起 1059 筆
+2. **加權指數 daily** (`daily_summary.twii_close`): MI_5MINS_HIST endpoint 每月 1 call
+3. **內插**: `daily_mkt_cap_chao = weekly_anchor × (TWII_daily / TWII_anchor)`
+
+`mkt_cap_source` 欄區分:
+- `'official'`: TWSE homeApi 抓的真值 (refresh 那天 + Excel migration import)
+- `'interp'`: 用上述內插算的近似 (誤差預估 1-3%)
+- `NULL`: TWII 缺 (例 2024-03 段 WAF ban) 暫時無法內插
+
+Backfill 流程:
+```
+python scripts/import_weekly_mktcap.py "path/to/week1-new.xls"
+python scripts/backfill_twii.py --from 2020-01 --to 2026-05 --sleep 1.5
+python scripts/recompute_mktcap_interp.py
+```
 
 ## 公式（v0.9.3 全 reverse-engineered）
 
