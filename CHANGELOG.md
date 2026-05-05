@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.3.1] - 2026-05-05 18:30
+
+### Fixed
+- 前端首次載入沒讀 URL 的 `?view_date=` query param，造成深連結直接打到
+  `?view_date=2026-04-15` 卻顯示最新一天的 dashboard（用戶反饋）。
+  - 初始 `loadView(_initialView)` 帶上 URL 解析結果
+  - 「載入」按鈕也同步 URL（history.replaceState）
+
 ## [v0.3] - 2026-05-05 18:22
 
 ### Fixed (用戶抓到 cost 全錯)

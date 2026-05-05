@@ -108,12 +108,21 @@ async function loadView(viewDate) {
     });
     $("#viewDate").value = r.view_date;
     render(r);
-    const last = r.last_refresh;
-    setStatus(
-      `資料日期 ${r.date}`
-      + (last ? `  ·  上次 refresh ${last.ts.replace("T", " ")} ${last.ok ? "✓" : "✗"}` : ""),
-      "ok"
+
+    // detect "all empty" — raw fut_legal/op_legal not in DB for this data date
+    const hasAnyData = (r.rows || []).some(row =>
+      row.day_lots !== 0 || row.oi_lots !== 0 || row.night_lots !== 0
     );
+    const last = r.last_refresh;
+    const lastTxt = last ? `  ·  上次 refresh ${last.ts.replace("T", " ")} ${last.ok ? "✓" : "✗"}` : "";
+    if (!hasAnyData) {
+      setStatus(
+        `資料日期 ${r.date} 的 raw 資料還沒進 DB → 點「Refresh 抓最新」即可抓 ${r.date}` + lastTxt,
+        "err"
+      );
+    } else {
+      setStatus(`資料日期 ${r.date}` + lastTxt, "ok");
+    }
   } catch (e) {
     console.error(e);
     setStatus(`載入失敗: ${e.message}`, "err");
@@ -147,7 +156,19 @@ async function doRefresh() {
   }
 }
 
-$("#btnLoad").addEventListener("click", () => loadView($("#viewDate").value));
+$("#btnLoad").addEventListener("click", () => {
+  const v = $("#viewDate").value;
+  // sync URL so deep-linking / refresh works
+  const u = new URL(window.location);
+  if (v) u.searchParams.set("view_date", v);
+  else u.searchParams.delete("view_date");
+  history.replaceState(null, "", u);
+  loadView(v);
+});
 $("#btnRefresh").addEventListener("click", doRefresh);
 
-loadView();
+// Honor ?view_date= in the URL on first load
+const _params = new URLSearchParams(window.location.search);
+const _initialView = _params.get("view_date");
+if (_initialView) $("#viewDate").value = _initialView;
+loadView(_initialView);
