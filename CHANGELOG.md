@@ -1,5 +1,25 @@
 # Changelog
 
+## [v0.9.1] - 2026-05-05 22:08
+
+### Fixed (用戶抓到「落單 row」)
+- 綜合整理 view 顯示 4/6 / 4/3 等 holiday 自己占一行（其他欄位空白）。
+- 根因：refresh.py 對任一日期都寫 `daily_summary` row，即使該日所有欄位都是
+  NULL（holiday backfill 的副作用）。導致 daily_summary 多了 29 個「全空殼」row。
+- 修法：
+  1. 一次性掃 daily_summary 找「除 date 外所有欄位都 NULL」的 row → DELETE 29 個
+  2. refresh.py 加防呆：若 merged 後所有欄位都 NULL 不寫；若 DB 已有同 date 的
+     全空 row 順便 DELETE 清乾淨
+- 順便整個 DB 掃了一遍：credit_summary 0 zombie、fut_price 0 orphan、
+  credit_twse 0 orphan，僅 daily_summary 有此問題。
+- daily_summary rows 348 → 319（= op_legal day-session date 數量，完全對齊）
+
+### 加上日期 + 顏色 fix
+- 兩個 page 的日期顯示 `M/D(週)` → `YYYY/M/D(週)` 帶年份（per 用戶反饋）。
+- 綜合整理 td.neg specificity 修：`table.zonghe td { color: var(--fg) }`
+  (0,1,2) 原本蓋掉 `td.neg { color: red }` (0,1,1)，所有負數都顯示黑色。
+  改成 `table.zonghe td.neg` (0,1,3) 後純紅 #FF0000 正常生效。
+
 ## [v0.9.0] - 2026-05-05 21:51
 
 ### Added — 綜合整理 view

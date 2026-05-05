@@ -191,11 +191,17 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
             new_val = summary.get(c)
             old_val = existing[c] if existing else None
             merged[c] = new_val if new_val is not None else old_val
-        con.execute(f"""
-            INSERT OR REPLACE INTO daily_summary
-            (date, {", ".join(cols)})
-            VALUES (?, {", ".join("?" * len(cols))})
-        """, (date_dash, *[merged[c] for c in cols]))
+        # Skip writing the row if it would be all-NULL (e.g. backfilling a
+        # holiday — no point creating an empty placeholder).
+        if any(v is not None for v in merged.values()):
+            con.execute(f"""
+                INSERT OR REPLACE INTO daily_summary
+                (date, {", ".join(cols)})
+                VALUES (?, {", ".join("?" * len(cols))})
+            """, (date_dash, *[merged[c] for c in cols]))
+        elif existing:
+            # All inputs NULL but DB had an existing row — also clean it up
+            con.execute("DELETE FROM daily_summary WHERE date = ?", (date_dash,))
 
 
 def compute_daily_summary(target_date: str, results: dict[str, Any]) -> dict[str, Any]:
