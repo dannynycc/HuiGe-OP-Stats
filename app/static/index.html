@@ -17,7 +17,7 @@
     --night-update-bg: #FFC000;      /* Excel H238 「晚上9:00後」 marker */
     --fg: #000000;                   /* Excel theme1 */
     --muted: #6b7280;
-    --neg-text: #d92929;
+    --neg-text: #FF0000;        /* Excel [Red] token = pure red */
     --border-thin: #b8b8b8;
     --border-thick: #1f1f1f;
     --cf-neg: #E1EEDB;               /* CF: 一般 row 口數<0 → 淡綠 */
@@ -143,11 +143,22 @@
 
 <main>
   <table class="summary" id="mainTable">
+    <colgroup>
+      <col style="width:8%">     <!-- For corner / 商品 label -->
+      <col style="width:9%">     <!-- 日盤口數 -->
+      <col style="width:10%">    <!-- 日盤成本 -->
+      <col style="width:8%">     <!-- 收盤價 -->
+      <col style="width:13%">    <!-- 淨部位 (paren format, 較寬) -->
+      <col style="width:10%">    <!-- 淨部位成本 -->
+      <col style="width:9%">     <!-- 夜盤口數 -->
+      <col style="width:10%">    <!-- 夜盤成本 -->
+      <col style="width:13%">    <!-- 開盤前部位 (paren format, 較寬) -->
+      <col style="width:10%">    <!-- 開盤前多空 (paren format) -->
+    </colgroup>
     <thead>
       <tr>
         <th rowspan="3" class="for-corner" id="forCell">For<br>—<br>開盤前看</th>
-        <th colspan="8" class="title">柴柴 — 期交所法人部位彙整</th>
-        <th colspan="2" class="title" style="background:transparent;border:0"></th>
+        <th colspan="9" class="title">柴柴 — 期交所法人部位彙整</th>
       </tr>
       <tr>
         <th colspan="5" class="section col-divider" id="dayHeader">— 日盤</th>
