@@ -44,9 +44,10 @@
   header a:hover { text-decoration: underline; }
 
   .table-wrap {
-    padding: 10px 16px 30px;     /* 右側留白避免 border 被 viewport 切掉 */
-    overflow-x: auto;
+    padding: 10px 16px 30px;
     box-sizing: border-box;
+    /* overflow-x removed — was breaking sticky thead (made wrap the scroll
+       context). Without it, table sticky pins to viewport (body scroll). */
   }
   table.zonghe {
     border-collapse: collapse;
