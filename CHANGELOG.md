@@ -1,5 +1,27 @@
 # Changelog
 
+## [v0.7.1] - 2026-05-05 21:14
+
+### Added
+- **Backfill 整個 2025 年**（2025-01-02 ~ 2025-11-05，221 weekday → 204 trading days，
+  17 holiday graceful skip）。加上之前已有的 11/6/2025 ~ 5/5/2026，DB 現在涵蓋
+  **319 個 trading days, 全部從官方 endpoints 真實抓取**。
+- README 加入 TWSE 官方休市日曆 reference URL：
+  - <https://www.twse.com.tw/zh/trading/holiday.html>（網頁版）
+  - JSON API: `?date=YYYYMMDD&response=json`
+  - HTML API: `?date=YYYYMMDD&response=html`
+- README「已驗證資料正確性」段重寫，列出本次完整 sanity check 結果。
+
+### Verified（針對「100% 確定」的多重驗證）
+- 319 days row count 一致性：全部 op_day=30 / fut_day=73，0 anomaly
+- 連續性檢查：5 個 gap > 4 天全為預期 holiday cluster
+- 隨機 5 sample 重 fetch endpoint 對 DB 100% match
+- 跟 TWSE 官方 2025 holiday list 18/18 完全一致（0 mismatch 兩邊）
+- 4/7 view + 2/23 view 跟 Excel ground truth 1:1 match
+
+### Fixed
+- 1 個 1/1/2025 orphan night row 因 DB 沒 2024 資料無處 absorb，直接 delete。
+
 ## [v0.7] - 2026-05-05 20:00
 
 ### Fixed (Holiday-aware logic — 用戶 hint「4/6 有開盤嗎? 4/3 有開盤嗎?」抓到 3 個串連 bug)
