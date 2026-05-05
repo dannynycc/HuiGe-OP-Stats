@@ -1,5 +1,25 @@
 # Changelog
 
+## [v0.10.0] - 2026-05-06 01:18
+
+### Fixed (用戶: 加權指數怎麼也缺那麼多)
+- 加權指數 / 上市總市值 對 2024-03 ~ 2026-05 段全 NULL (542 dates)
+- Root cause: TWSE WAF 把連續 50+ requests 的 IP 暫時 ban,
+  之前 `MI_5MINS_HIST` endpoint 抓不到後段 month
+- **改用 FinMind `TaiwanStockPrice` data_id='TAIEX'** — 給 OHLC + Trading_money,
+  分 26 quarterly chunks, 寫 1536 rows 全段覆蓋
+- 重跑 `recompute_mktcap_interp.py` → 1421 interp rows (其中 1191 是新補的)
+
+### Cleanup edge case
+- 2024-10-31 (康芮颱風): 股票休市但期貨夜盤有開 → `op_legal` 有 6 night rows
+  → `daily_summary` 被 recompute 寫入 row 但 TAIEX 那天沒值 → 永遠 NULL
+- DELETE: orphan 規則 = `daily_summary` row 沒對應 day-session op_legal 就刪
+- 命中 1 row (= 2024-10-31), op_legal 保留 (真資料)
+
+### Final coverage (1536 trading days)
+- `twii_close`: 0 NULL ✓
+- `twse_mkt_cap_chao`: 0 NULL ✓ (115 official + 1421 interp)
+
 ## [v0.9.9] - 2026-05-06 01:08
 
 ### Fixed (用戶罵醒：「自己不會驗證嗎」「每次都憑感覺亂猜」)
