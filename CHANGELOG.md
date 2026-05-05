@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.3] - 2026-05-05 18:22
+
+### Fixed (用戶抓到 cost 全錯)
+- **期貨類 cost 公式**：amt 不該除以等效因子（lots 才要除）。Excel R240 C3
+  原公式 `(I54+I56+I63+I65+I66+I68)/B240*5` 把 6 個 amt **直接相加**只除以
+  等效大台 lots。我之前把 amt 也按 4 / 20 除掉了，導致台指期/電子期日夜盤
+  cost 全部偏低。修正後 4/30 台指期日盤 cost = 39,565（合理價位）。
+- **`daily_summary` refresh 不再覆寫舊欄位** — 改成 column-by-column merge：
+  COALESCE(new, old)。原本 refresh 4/15 時 fut_price 沒拿到，把 Excel
+  migration 的 tx_close=36,643 蓋成 NULL。現在 refresh 撞到 NULL 不寫。
+
+### Changed (用戶反饋 UI 還是太複雜)
+- 上方 controls 從「資料日期 / 抓資料」兩個 date 欄合併為**單一**
+  「For [date] 開盤前看」+ 載入 + Refresh 抓最新。data_date 自動 = view_date
+  前一個交易日。
+- `/api/dashboard` 多接 `view_date=` 參數（preferred），原本的 `date=` 保留 compat。
+
 ## [v0.2] - 2026-05-05 18:11
 
 ### Changed (依用戶反饋)

@@ -174,32 +174,28 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
             tpex_margin_thousand, tpex_turnover, tpex_mkt_cap_million,
         ))
 
-        # daily_summary aggregate row
+        # daily_summary aggregate row — merge instead of overwrite, so a fresh
+        # refresh that can't get tx_close (fut_price endpoint = today only) will
+        # not blank out a value previously imported from Excel.
         summary = compute_daily_summary(date_dash, results)
-        con.execute("""
+        existing = con.execute(
+            "SELECT * FROM daily_summary WHERE date = ?", (date_dash,)
+        ).fetchone()
+        cols = ["tx_close", "op_legal_net", "op_call_net", "op_put_net", "op_cp_net",
+                "fut_pre_open_net", "stock_fut_legal_net",
+                "twse_margin_pct", "tpex_margin_pct",
+                "twse_margin_amt_oku", "tpex_margin_amt_oku",
+                "twse_mkt_cap_chao", "tpex_mkt_cap_chao"]
+        merged = {}
+        for c in cols:
+            new_val = summary.get(c)
+            old_val = existing[c] if existing else None
+            merged[c] = new_val if new_val is not None else old_val
+        con.execute(f"""
             INSERT OR REPLACE INTO daily_summary
-            (date, tx_close, op_legal_net, op_call_net, op_put_net, op_cp_net,
-             fut_pre_open_net, stock_fut_legal_net,
-             twse_margin_pct, tpex_margin_pct,
-             twse_margin_amt_oku, tpex_margin_amt_oku,
-             twse_mkt_cap_chao, tpex_mkt_cap_chao)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            date_dash,
-            summary.get("tx_close"),
-            summary.get("op_legal_net"),
-            summary.get("op_call_net"),
-            summary.get("op_put_net"),
-            summary.get("op_cp_net"),
-            summary.get("fut_pre_open_net"),
-            summary.get("stock_fut_legal_net"),
-            summary.get("twse_margin_pct"),
-            summary.get("tpex_margin_pct"),
-            summary.get("twse_margin_amt_oku"),
-            summary.get("tpex_margin_amt_oku"),
-            summary.get("twse_mkt_cap_chao"),
-            summary.get("tpex_mkt_cap_chao"),
-        ))
+            (date, {", ".join(cols)})
+            VALUES (?, {", ".join("?" * len(cols))})
+        """, (date_dash, *[merged[c] for c in cols]))
 
 
 def compute_daily_summary(target_date: str, results: dict[str, Any]) -> dict[str, Any]:

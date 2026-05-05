@@ -98,20 +98,19 @@ function render(payload) {
   tbody.innerHTML = html.join("");
 }
 
-async function loadDate(date) {
+async function loadView(viewDate) {
   setStatus("載入中…");
   try {
-    const url = date ? `/api/dashboard?date=${date}` : "/api/dashboard";
+    const url = viewDate ? `/api/dashboard?view_date=${viewDate}` : "/api/dashboard";
     const r = await fetch(url).then(r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     });
-    $("#dataDate").value = r.date;
-    $("#refreshDate").value = r.date;
+    $("#viewDate").value = r.view_date;
     render(r);
     const last = r.last_refresh;
     setStatus(
-      `${r.date} 已載入`
+      `資料日期 ${r.date}`
       + (last ? `  ·  上次 refresh ${last.ts.replace("T", " ")} ${last.ok ? "✓" : "✗"}` : ""),
       "ok"
     );
@@ -125,15 +124,22 @@ async function doRefresh() {
   const btn = $("#btnRefresh"); btn.disabled = true;
   setStatus("Refreshing...");
   try {
-    const targetDate = $("#refreshDate").value;
-    const url = targetDate ? `/api/refresh?date=${targetDate}` : "/api/refresh";
+    // Refresh fetches the data-date, which is the weekday before view_date.
+    const viewDate = $("#viewDate").value;
+    let dataDate = null;
+    if (viewDate) {
+      const d = new Date(viewDate + "T00:00:00");
+      do { d.setDate(d.getDate() - 1); } while (d.getDay() === 0 || d.getDay() === 6);
+      dataDate = d.toISOString().slice(0, 10);
+    }
+    const url = dataDate ? `/api/refresh?date=${dataDate}` : "/api/refresh";
     const r = await fetch(url, { method: "POST" }).then(r => r.json());
     if (r.ok) {
-      setStatus(`Refresh OK (${r.target_date}, ${r.elapsed_sec}s)`, "ok");
+      setStatus(`Refresh OK (data ${r.target_date}, ${r.elapsed_sec}s)`, "ok");
     } else {
       setStatus(`Refresh 失敗: ${(r.errors || []).join("; ")}`, "err");
     }
-    await loadDate(r.target_date);
+    await loadView(viewDate);
   } catch (e) {
     setStatus(`Refresh 失敗: ${e.message}`, "err");
   } finally {
@@ -141,7 +147,7 @@ async function doRefresh() {
   }
 }
 
-$("#btnLoad").addEventListener("click", () => loadDate($("#dataDate").value));
+$("#btnLoad").addEventListener("click", () => loadView($("#viewDate").value));
 $("#btnRefresh").addEventListener("click", doRefresh);
 
-loadDate();
+loadView();

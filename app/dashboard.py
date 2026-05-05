@@ -23,8 +23,14 @@ LEGAL_ROLES = ("外資", "自營商")
 
 def _sum_fut(con, date: str, daynight: str, products_factors: list[tuple[str, float]],
              field: str) -> tuple[float, float]:
-    """Return (sum_lots_eq, sum_amt_eq) where each component is divided by the
-    lot-equivalence factor and the amt by same factor."""
+    """Return (sum_lots_eq, sum_amt_raw).
+
+    Per Excel formula (工作表2 R240 etc.):
+      lots: each product divided by lot-equivalence factor (大台/4 = 小台 等)
+      amt:  raw sum across all products (NOT divided), because contract金額
+            already scales naturally with the smaller multiplier.
+    Cost is then computed by caller as (sum_amt_raw / sum_lots_eq) * cost_mul.
+    """
     total_lots = 0.0
     total_amt = 0.0
     for product, factor in products_factors:
@@ -35,7 +41,7 @@ def _sum_fut(con, date: str, daynight: str, products_factors: list[tuple[str, fl
         """, (date, daynight, product, *LEGAL_ROLES)).fetchone()
         if rows:
             total_lots += (rows[0] or 0) / factor
-            total_amt += (rows[1] or 0) / factor
+            total_amt += (rows[1] or 0)  # raw sum, no factor
     return total_lots, total_amt
 
 

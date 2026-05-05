@@ -102,16 +102,39 @@ def api_timeseries() -> dict[str, Any]:
 
 
 @app.get("/api/dashboard")
-def api_dashboard(date: str | None = Query(default=None)) -> dict[str, Any]:
-    """The 6-row 柴柴 法人部位彙整 view for a given data date."""
+def api_dashboard(view_date: str | None = Query(default=None),
+                  date: str | None = Query(default=None)) -> dict[str, Any]:
+    """The 6-row 柴柴 法人部位彙整 view.
+
+    Accepts either:
+      - view_date=YYYY-MM-DD  (the "For X 開盤前看" date — preferred). Data
+        date is derived as the previous weekday before view_date.
+      - date=YYYY-MM-DD       (the data date directly — kept for compat).
+      - neither: defaults to the most-recent data date in DB.
+    """
+    import datetime as dt
+
     with connect() as con:
-        if not date:
+        data_date: str | None
+        if view_date:
+            v = dt.date.fromisoformat(view_date)
+            d = v - dt.timedelta(days=1)
+            while d.weekday() >= 5:
+                d -= dt.timedelta(days=1)
+            data_date = d.isoformat()
+        elif date:
+            data_date = date
+        else:
             row = con.execute("SELECT MAX(date) FROM fut_legal").fetchone()
-            date = row[0] if row else None
-        if not date:
+            data_date = row[0] if row and row[0] else None
+            if not data_date:
+                row = con.execute("SELECT MAX(date) FROM daily_summary").fetchone()
+                data_date = row[0] if row and row[0] else None
+
+        if not data_date:
             raise HTTPException(404, "No data in DB. Run /api/refresh first.")
-    payload = build_dashboard(date)
-    # also include last_refresh for display
+
+    payload = build_dashboard(data_date)
     with connect() as con:
         last = con.execute(
             "SELECT * FROM refresh_log ORDER BY id DESC LIMIT 1"
