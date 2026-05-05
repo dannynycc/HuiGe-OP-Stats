@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.9.5] - 2026-05-06 00:11
+
+### Fixed
+- **主表 (For X 開盤前看) 的「電子期 / 金融期」收盤欄一直空白**
+  - Root cause: `dashboard.py` 只對 label=="台指期" 才 SELECT close FROM fut_price，
+    其他 contract 永遠 None
+  - Fix: 用 `contract_code` map (台指期→TX / 電子期→TE / 金融期→TF) 都 lookup
+  - 驗證 2026-05-04: 台指 41031 / 電子 2658 / 金融 2493 ✅
+
+### In Progress
+- Historical TE/TF backfill (`scripts/backfill_fut_price.py --from 2023-05-05`)
+  跑中 — fut_price 對 2023/05/05 起每天加 TE+TF rows (~750 trading days)
+- 2020-2023/05 段 daily_summary 缺 margin / mkt_cap 欄位 (FinMind backfill 待寫)
+
 ## [v0.9.4] - 2026-05-05 23:59
 
 ### Fixed

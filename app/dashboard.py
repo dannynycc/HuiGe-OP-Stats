@@ -120,15 +120,21 @@ def build_dashboard(date: str) -> dict[str, Any]:
                                   else (0 if show_pre_open else None)),
                 "pre_open_cp": None,
             }
-            if label == "台指期":
-                tx = con.execute("""
+            # Pick contract code for close price lookup
+            contract_code = {
+                "台指期": "TX",
+                "電子期": "TE",
+                "金融期": "TF",
+            }.get(label)
+            if contract_code:
+                row_close = con.execute("""
                     SELECT close FROM fut_price
-                    WHERE date = ? AND contract = 'TX' AND expiry IS NOT NULL
+                    WHERE date = ? AND contract = ? AND expiry IS NOT NULL
                     ORDER BY expiry LIMIT 1
-                """, (date,)).fetchone()
-                close = tx[0] if tx else None
-                if close is None:
-                    # fallback to daily_summary (Excel-imported history)
+                """, (date, contract_code)).fetchone()
+                close = row_close[0] if row_close else None
+                if close is None and contract_code == "TX":
+                    # TX has Excel-migrated fallback in daily_summary; TE/TF don't
                     ds = con.execute(
                         "SELECT tx_close FROM daily_summary WHERE date = ?", (date,)
                     ).fetchone()
