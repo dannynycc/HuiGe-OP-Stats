@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>法人OP日夜盤數據</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1116;
+    --panel: #1a1d27;
+    --panel2: #232735;
+    --fg: #e6e9ef;
+    --muted: #8a93a6;
+    --accent: #5fb3ff;
+    --pos: #4ade80;
+    --neg: #f87171;
+    --border: #2c3142;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  header .meta { color: var(--muted); }
+  button {
+    background: var(--accent); color: #0b1320; border: 0;
+    padding: 7px 14px; border-radius: 5px; cursor: pointer; font-weight: 600;
+  }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  button.secondary { background: var(--panel2); color: var(--fg); border: 1px solid var(--border); }
+  input[type=date] {
+    background: var(--panel2); color: var(--fg); border: 1px solid var(--border);
+    padding: 5px 8px; border-radius: 4px;
+  }
+  main { padding: 16px; display: grid; gap: 16px; }
+  section.card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .card h2 {
+    margin: 0; padding: 10px 14px;
+    font-size: 14px; font-weight: 600;
+    background: var(--panel2);
+    border-bottom: 1px solid var(--border);
+  }
+  .card .body { padding: 6px 14px 14px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: right;
+    white-space: nowrap;
+  }
+  th { background: var(--panel2); font-weight: 600; }
+  th:first-child, td:first-child,
+  th[data-text], td[data-text] { text-align: left; }
+  td.pos { color: var(--pos); }
+  td.neg { color: var(--neg); }
+  .row-group-divider { border-top: 2px solid var(--border); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } }
+  #status { color: var(--muted); }
+  #status.ok { color: var(--pos); }
+  #status.err { color: var(--neg); }
+  #chart { width: 100%; min-height: 480px; }
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .kpi {
+    background: var(--panel2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 5px;
+  }
+  .kpi .label { color: var(--muted); font-size: 11px; }
+  .kpi .value { font-size: 17px; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>法人OP日夜盤數據</h1>
+  <div class="meta">
+    日期 <input type="date" id="dateInput">
+    <button id="btnLoad" class="secondary">載入</button>
+  </div>
+  <div class="meta">
+    抓資料：
+    <input type="date" id="refreshDate">
+    <button id="btnRefresh">Refresh</button>
+  </div>
+  <div class="meta" id="status">—</div>
+</header>
+
+<main>
+
+<section class="card">
+  <h2>① 開盤前重點 (綜合整理)</h2>
+  <div class="body" id="kpiBody">
+    <div class="kpi-grid" id="kpiGrid"></div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>② 綜合整理時序圖 (歷史)</h2>
+  <div class="body"><div id="chart"></div></div>
+</section>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>③ 三大法人選擇權 — 日盤 (臺指選擇權部分;含未平倉)</h2>
+    <div class="body" id="opDayBody"></div>
+  </section>
+  <section class="card">
+    <h2>③' 三大法人選擇權 — 夜盤 (臺指選擇權)</h2>
+    <div class="body" id="opNightBody"></div>
+  </section>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>④ 三大法人期貨 — 日盤</h2>
+    <div class="body" id="futDayBody"></div>
+  </section>
+  <section class="card">
+    <h2>④' 三大法人期貨 — 夜盤</h2>
+    <div class="body" id="futNightBody"></div>
+  </section>
+</div>
+
+<section class="card">
+  <h2>⑤ 台指期 TX 各到期月</h2>
+  <div class="body" id="futPriceBody"></div>
+</section>
+
+<section class="card">
+  <h2>⑥ 信用交易 (上市/上櫃)</h2>
+  <div class="body" id="creditBody"></div>
+</section>
+
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
