@@ -19,7 +19,31 @@ from app.db import connect
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 URL = "https://www.twse.com.tw/rwd/zh/TAIEX/MI_5MINS_HIST"
-UA = "Mozilla/5.0"
+UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
+REFERER = "https://www.twse.com.tw/zh/trading/historical/mi-5mins-hist.html"
+
+# Session keeps cookies set by initial home page visit, mimics real browser.
+_SESSION: requests.Session | None = None
+
+
+def _get_session() -> requests.Session:
+    global _SESSION
+    if _SESSION is None:
+        s = requests.Session()
+        s.headers.update({
+            "User-Agent": UA,
+            "Accept": "application/json,text/javascript,*/*;q=0.9",
+            "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
+            "Referer": REFERER,
+        })
+        # Visit home first to seed cookies — TWSE WAF blocks "naked" requests
+        try:
+            s.get("https://www.twse.com.tw/zh/", timeout=15, verify=False)
+        except Exception:
+            pass
+        _SESSION = s
+    return _SESSION
 
 
 def _to_float(s: str) -> float | None:
@@ -40,28 +64,41 @@ def _roc_to_iso(s: str) -> str | None:
         return None
 
 
-def fetch_month(yyyymm: str) -> list[dict]:
-    """yyyymm = '202604'. Returns list of {date, open, high, low, close}."""
+def fetch_month(yyyymm: str, retries: int = 3) -> list[dict]:
+    """yyyymm = '202604'. Returns list of {date, open, high, low, close}.
+
+    Retries with backoff on WAF block (HTTP 307 + 安全性考量 HTML).
+    """
     date_param = f"{yyyymm}01"
-    r = requests.get(URL, params={"date": date_param, "response": "json"},
-                     headers={"User-Agent": UA}, timeout=30, verify=False)
-    r.raise_for_status()
-    j = r.json()
-    if j.get("stat") != "OK":
-        return []
-    out = []
-    for row in j.get("data") or []:
-        date = _roc_to_iso(row[0])
-        if not date:
-            continue
-        out.append({
-            "date": date,
-            "twii_open": _to_float(row[1]),
-            "twii_high": _to_float(row[2]),
-            "twii_low":  _to_float(row[3]),
-            "twii_close": _to_float(row[4]),
-        })
-    return out
+    s = _get_session()
+    for attempt in range(retries):
+        try:
+            r = s.get(URL, params={"date": date_param, "response": "json"},
+                      timeout=30, verify=False, allow_redirects=False)
+            if r.status_code == 200:
+                j = r.json()
+                if j.get("stat") != "OK":
+                    return []
+                out = []
+                for row in j.get("data") or []:
+                    date = _roc_to_iso(row[0])
+                    if not date:
+                        continue
+                    out.append({
+                        "date": date,
+                        "twii_open": _to_float(row[1]),
+                        "twii_high": _to_float(row[2]),
+                        "twii_low":  _to_float(row[3]),
+                        "twii_close": _to_float(row[4]),
+                    })
+                return out
+            # 307 = WAF block — exponential backoff & re-seed cookies
+            global _SESSION
+            _SESSION = None  # rebuild session next iteration
+            time.sleep(30 * (attempt + 1))  # 30 / 60 / 90s
+        except Exception:
+            time.sleep(10 * (attempt + 1))
+    return []
 
 
 def month_range(start: str, end: str):

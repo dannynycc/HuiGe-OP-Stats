@@ -1,5 +1,25 @@
 # Changelog
 
+## [v0.9.8] - 2026-05-06 00:54
+
+### Fixed
+- **歷史 (2020-2023/04) 任挑一天主表電子期 / 金融期 close 都空**
+  - Root cause: 那段是 FinMind backfill 段 (TAIFEX cutoff 之前)，但
+    `app/scrapers/finmind.py` 的 `fetch_fut_price_tx` 寫死只抓 TX
+  - Inline 補了 14 個 quarterly chunks: TaiwanFuturesDaily data_id=TE/TF
+  - 寫入 fut_price 5,615 (TE) + 5,749 (TF) rows
+  - 含 OHLC + day_vol + ah_vol + settle + oi (跟 TX 結構一致)
+  - 隨機 7 dates sample 驗證 (2020-03-25 ~ 2022-04-29) close 都合理範圍
+
+### Coverage 進度
+- TX: 1,536 dates (2020-01-02 ~ 2026-05-05)  全段
+- TE: 1,303 dates (2020-01-02 ~ 2026-05-05)  缺 ~230 dates 2025-04-15+
+- TF: 1,303 dates                              同 TE，等 background backfill_fut_price 跑完
+
+### Background tasks 進度 (snapshot)
+- `backfill_fut_price.py --from 2023-05-05` (PID 16876): 470/727 (65%), ETA ~13 min
+- `backfill_twii.py --from 2024-03` (PID 32332): 等 TWSE WAF ban lift 中
+
 ## [v0.9.7] - 2026-05-06 00:42
 
 ### Added — historical 上市總市值 backfill (用戶提供 source)
