@@ -144,7 +144,7 @@ function render(payload) {
         <td class="product col-divider">${r.product}</td>
         ${tdMinus(r.day_lots, "", cfDay)}
         ${tdMinus(r.day_cost, "", cfDay)}
-        ${i === 0 ? closeCellHTML : `<td class="col-divider empty"></td>`}
+        ${closeCellHTML}
         ${tdParen(r.oi_lots, "", cfOI)}
         ${tdMinus(r.oi_cost, "col-divider", cfOI)}
         ${nightLotsCell}

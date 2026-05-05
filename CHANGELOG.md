@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.9.9] - 2026-05-06 01:08
+
+### Fixed (用戶罵醒：「自己不會驗證嗎」「每次都憑感覺亂猜」)
+- **主表 (For X 開盤前看) 電子期 / 金融期 close 永遠空** — 不管後端 emit 啥
+- Root cause: `app/static/app.js:147` 寫死 `${i === 0 ? closeCellHTML : ...empty}`
+  — 只有第一 row (台指期) 才用 closeCellHTML，2/3 row 永遠 empty
+- 已在 v0.9.5 修 dashboard.py emit close_price for 電子期/金融期，但
+  frontend 寫死的條件壓過去 → 我之前看 raw API 有值就以為 OK，沒驗 UI
+
+### Added
+- `scripts/verify_main_view.py` — Playwright 驗主表多日期 close 真的渲染
+- 跑 7 個歷史日期 sample，5/7 通過；剩 2 dates (2025-08-18 / 2026-04-15)
+  TE/TF 還空是 DB 沒 backfill (因 PID 16876 中途 kill 過)，inline 重跑中
+
 ## [v0.9.8] - 2026-05-06 00:54
 
 ### Fixed
