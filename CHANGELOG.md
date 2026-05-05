@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.10.3] - 2026-05-06 01:14
+
+### Fixed (md freshness — 用戶提醒每次 commit 必掃)
+- v0.10.2 寫「yfinance 裝不起來」是**誤診** — 實際是我用 `pip install -q + timeout=60s`
+  太短，pip 還沒下載完就被 timeout kill；無 -q 重跑「Successfully installed yfinance-1.3.0」
+- 補：FinMind 從 HTTP 402 (quota) 升級到 HTTP 403 (`ip banned`)，24h-7d 才解
+- README 的 SQLite schema 補 `twii_close` / `mkt_cap_source` / `mkt_cap_weekly` (v0.9.7 起欄位)
+- README 「Backfill 涵蓋範圍」段更新到 v0.10.x 現況 (1536 dates、新 source 對應、缺欄位列表)
+- README 「twse_mkt_cap_chao 資料策略」段更新成 FinMind TaiwanStockPrice (取代 v0.9.7 的
+  TWSE MI_5MINS_HIST，因後者觸發 WAF ban)
+
 ## [v0.10.2] - 2026-05-06 01:48
 
 ### Fixed (用戶: 融資餘額/佔市值比 還有漏)
@@ -16,10 +27,13 @@
 - 2020-2023/05 段全 NULL: twse_margin_amt_oku / tpex_margin_amt_oku /
   tpex_mkt_cap_chao / stock_fut_legal_net (~800 dates each)
 
-### 三個 source 全卡死
-- TWSE WAF: MI_5MINS_HIST / MI_MARGN 都 HTTP 307 ban (~1h+)
-- FinMind 免費版: HTTP 402 quota 用完 (24h reset)
-- yfinance 裝不起來
+### 三個 source 卡死
+
+| Source | 狀態 | 升級狀況 |
+|---|---|---|
+| TWSE WAF (MI_5MINS_HIST / MI_MARGN) | HTTP 307 ban | 等 ~1h+ lift |
+| FinMind 免費版 | HTTP 402 quota 用完 | 後升級成 HTTP 403 `ip banned` (24h-7d) |
+| ~~yfinance 裝不起來~~ | **誤診修正** | 實際裝得起來 (我用 -q + timeout=60s 太短假象), 但只給個股 price 沒「TWSE 融資餘額」, 不解我們的問題 |
 
 ### Added
 - `scripts/backfill_historical_unified.py` — 一個 process 抓 4 source

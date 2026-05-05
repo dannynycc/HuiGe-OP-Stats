@@ -116,7 +116,8 @@ start.bat / stop.bat
 - `fut_price(date, contract, expiry, open, high, low, close, settle, change, ah_vol, day_vol, total_vol, oi, best_bid, best_ask, PK(date,contract,expiry))`
 - `credit_twse(date, item, buy, sell, repay, prev_balance, today_balance, PK(date,item))`
 - `credit_summary(date, twse_margin_balance, twse_turnover, twse_mkt_cap, tpex_margin_balance, tpex_turnover, tpex_mkt_cap, PK(date))`
-- `daily_summary(date PK, tx_close, op_legal_net, op_call_net, op_put_net, op_cp_net, fut_pre_open_net, stock_fut_legal_net, twse_margin_pct, tpex_margin_pct, twse_margin_amt_oku, tpex_margin_amt_oku, twse_mkt_cap_chao, tpex_mkt_cap_chao)`
+- `daily_summary(date PK, tx_close, op_legal_net, op_call_net, op_put_net, op_cp_net, fut_pre_open_net, stock_fut_legal_net, twse_margin_pct, tpex_margin_pct, twse_margin_amt_oku, tpex_margin_amt_oku, twse_mkt_cap_chao, tpex_mkt_cap_chao, twii_close, mkt_cap_source)` *(twii_close + mkt_cap_source v0.9.7 起)*
+- `mkt_cap_weekly(date PK, twse_mkt_cap_oku, source)` *(v0.9.7 起；TWSE 市值週報 import)*
 - `refresh_log(id, ts, ok, errors_json)`
 
 ## 啟動
@@ -151,12 +152,16 @@ python scripts/backfill.py --dates 2024-03-15,2024-03-18
 
 ## 已驗證資料正確性
 
-### Backfill 涵蓋範圍
-- DB 涵蓋 **2025-01-02 ~ 2026-05-05**，共 **319 個 trading days** (v0.7)
-- 持續進行中: 2023/05/05 ~ 2024/12/31 (TAIFEX 直抓, v0.9.2)
-- 持續進行中: 2020/02 ~ 2023/05/04 (FinMind, v0.9.2)
-- 全部從官方 endpoints 真實抓取（非 Excel migration）
+### Backfill 涵蓋範圍 (v0.10.x 現況)
+- DB 涵蓋 **2020-01-02 ~ 2026-05-05**，共 **1,536 個 trading days**
+- 2023/05/05 起 TAIFEX 直抓 (TX/TE/TF/op/fut)
+- 2020/01 ~ 2023/05/04 用 FinMind (TaiwanFuturesDaily + Options/Futures Institutional)
+- 加權指數 1536 days 全段用 FinMind `TaiwanStockPrice` data_id='TAIEX'
+- 上市總市值 1536 days 全段 (115 official + 1421 interp via 週報 + TWII)
+- 全部從官方 / 第三方 endpoints 真實抓取（非 Excel migration）
 - TAIFEX endpoint cutoff = **2023/05/05**，更早只能用 FinMind (有 sub-product 限制)
+- **仍缺**：2020-2023/05 段 信用餘額 (TWSE+TPEX) / 上櫃總市值 / 個股期合計法人
+  + 2023-05-05 後 11 個 dates 也缺 信用餘額 (詳「已知尚未實作」段)
 
 ### Sanity check 結果
 - **Row count 一致性**：319 days 全部 op_legal day=30、fut_legal day=73，0 anomaly
@@ -188,30 +193,38 @@ Excel 慣例。已驗證 14 個 cross-holiday absorbing dates 全部 day=30 nigh
 
 - 損益圖（Excel「損益圖」sheet 的 9 checkbox S1-S3/U1-U6 互斥邏輯）— 用戶決定不做
 - 自動排程 / 定時 refresh — 用戶決定不做
-- 2020-2023/05 段 daily_summary 缺 `twse_margin_amt_oku` / `tpex_margin_amt_oku`
-  / `stock_fut_legal_net` — 進行中（FinMind backfill）
-- `twse_mkt_cap_chao` historical: 用週報 + TWII 內插補回；2024-03+ 段等 TWSE
-  WAF ban lift 後 retry TWII
+- 2020-2023/05 段 daily_summary 仍缺 `twse_margin_amt_oku` / `tpex_margin_amt_oku`
+  / `stock_fut_legal_net` / `tpex_mkt_cap_chao` — 第三方 source 全卡死中：
+  - **TWSE WAF**: HTTP 307 ban（連續 50+ requests 觸發）
+  - **FinMind 免費版**: HTTP 403 IP-level ban（24h-7d 才解）
+  - 待 ban lift / 用戶下載 TWSE 信用週報 xls 補
+- 2023-05-05 後 11 個 dates 也缺 `twse_margin_amt_oku`（同上 source 卡死）
 
-## 上市總市值 (twse_mkt_cap_chao) 資料策略 (v0.9.7)
+## 上市總市值 (twse_mkt_cap_chao) 資料策略 (v0.10.0 起)
 
 公開 endpoint `homeApi/mkt_cap` 只回最近 5 天 → 歷史靠下面組合補：
 
 1. **TWSE 市值週報 .xls** (`mkt_cap_weekly` 表): 週頻、2005-09 起 1059 筆
-2. **加權指數 daily** (`daily_summary.twii_close`): MI_5MINS_HIST endpoint 每月 1 call
+2. **加權指數 daily** (`daily_summary.twii_close`): **FinMind `TaiwanStockPrice` data_id='TAIEX'** 抓
+   （v0.9.7 原本用 TWSE `MI_5MINS_HIST` 但連續抓 50+ 月份觸發 WAF ban，
+   改用 FinMind 全段 26 chunks 一次 backfill 完成）
 3. **內插**: `daily_mkt_cap_chao = weekly_anchor × (TWII_daily / TWII_anchor)`
 
 `mkt_cap_source` 欄區分:
 - `'official'`: TWSE homeApi 抓的真值 (refresh 那天 + Excel migration import)
 - `'interp'`: 用上述內插算的近似 (誤差預估 1-3%)
-- `NULL`: TWII 缺 (例 2024-03 段 WAF ban) 暫時無法內插
+- `NULL`: 應該不再有 (v0.10.0 後 1536 trading days 全 cover)
 
 Backfill 流程:
 ```
 python scripts/import_weekly_mktcap.py "path/to/week1-new.xls"
-python scripts/backfill_twii.py --from 2020-01 --to 2026-05 --sleep 1.5
+# (TWII 直接用 inline FinMind script, 見 v0.10.0 changelog)
 python scripts/recompute_mktcap_interp.py
 ```
+
+**v0.10.1 起 refresh 後自動 trigger** `_post_refresh_aggregate()`:
+- 該天若 mkt_cap NULL → 自動 interp
+- 重算 `twse_margin_pct = margin / (mkt_cap × 10000)`
 
 ## 公式（v0.9.3 全 reverse-engineered）
 
