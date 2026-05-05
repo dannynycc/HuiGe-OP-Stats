@@ -14,7 +14,7 @@ function fmtMD(iso) {
   if (!iso) return "—";
   const [y, m, d] = iso.split("-").map(Number);
   const day = new Date(iso + "T00:00:00").getDay();
-  return `${m}/${d}(${MD_DAY[day]})`;
+  return `${y}/${m}/${d}(${MD_DAY[day]})`;   // 帶年份, 避免歷史 view 不知是哪一年
 }
 
 // Number formats per Excel sheet109 numFmts:
