@@ -1,5 +1,31 @@
 # Changelog
 
+## [v0.10.2] - 2026-05-06 01:48
+
+### Fixed (用戶: 融資餘額/佔市值比 還有漏)
+- twse_margin_pct: 之前 recompute_daily_summary 從 credit_summary 算 pct,
+  但 credit_summary.twse_mkt_cap 對歷史段沒值 → pct=NULL 即使 daily_summary
+  其他 col 有值
+- Fix: SQL 直接從 daily_summary cols 算: `pct = margin_amt_oku / (mkt_cap_chao × 10000)`
+- Updated 774 rows (pre 84% NULL → 後段 NULL 大幅減少)
+
+### Audit + 老實列剩下不能補的
+- 2023-05-05 之後 (727 rows) 還有 11 個 dates twse_margin_amt_oku NULL:
+  2023-08-16, 2023-08-31, 2024-01-03, 2024-03-22, 2024-09-26,
+  2024-11-01, 2024-12-10, 2025-01-16, 2025-06-12, 2025-08-14, 2025-10-13
+- 2020-2023/05 段全 NULL: twse_margin_amt_oku / tpex_margin_amt_oku /
+  tpex_mkt_cap_chao / stock_fut_legal_net (~800 dates each)
+
+### 三個 source 全卡死
+- TWSE WAF: MI_5MINS_HIST / MI_MARGN 都 HTTP 307 ban (~1h+)
+- FinMind 免費版: HTTP 402 quota 用完 (24h reset)
+- yfinance 裝不起來
+
+### Added
+- `scripts/backfill_historical_unified.py` — 一個 process 抓 4 source
+  (留著等 quota / ban reset 後再跑)
+- `scripts/backfill_credit_summary.py` — TWSE+TPEX 信用 backfill (FinMind+TPEX)
+
 ## [v0.10.1] - 2026-05-06 01:30
 
 ### Fixed (用戶: For 開盤前看 第一個是空的 / 能不能自動一點)
