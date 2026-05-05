@@ -20,6 +20,9 @@
     --row-stripe: #fafafa;
   }
   * { box-sizing: border-box; }
+  /* 頁面 layout: body 滿 viewport, no body scroll;
+     .table-wrap 內部 scroll → sticky thead pins to wrap top correctly. */
+  html, body { height: 100%; }
   body {
     margin: 0;
     background: var(--bg);
@@ -27,6 +30,9 @@
     font-family: "DFKai-SB", "BiauKai", "標楷體", "Kaiti TC", "Kaiti SC", "Microsoft JhengHei", serif;
     font-size: 16px;
     font-weight: normal;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   header {
     padding: 10px 16px;
@@ -37,17 +43,18 @@
     font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
     font-size: 13px;
     background: #fff;
-    /* Removed sticky — let thead take top so 2 header rows can sticky-pin without overlap */
+    flex-shrink: 0;     /* 固定高度, 不被 scroll 帶走 */
   }
   header h1 { margin: 0; font-size: 16px; font-weight: 600; }
   header a { color: #2c5aa0; text-decoration: none; }
   header a:hover { text-decoration: underline; }
 
   .table-wrap {
-    padding: 10px 16px 30px;
+    padding: 10px 16px;
     box-sizing: border-box;
-    /* overflow-x removed — was breaking sticky thead (made wrap the scroll
-       context). Without it, table sticky pins to viewport (body scroll). */
+    flex: 1;             /* 填滿 viewport 剩下空間 */
+    overflow-y: auto;    /* 內部 scroll, sticky pins 到 wrap 頂 */
+    overflow-x: auto;
   }
   table.zonghe {
     border-collapse: collapse;
@@ -66,7 +73,9 @@
     background: #fff;
     border: 1px solid #d0d0d0;  /* 淺灰框 (per user "顏色不用太深") */
   }
-  /* Header rows — sticky to viewport (frozen pane ySplit=2 in Excel) */
+  /* Header — sticky to viewport. Use border-collapse:separate so per-row
+     sticky positions don't fight; pin R1 at 0, R2 at R1's actual height
+     measured at runtime via JS (auto-set --r1-height). */
   table.zonghe thead th {
     background: var(--header-bg);
     color: var(--fg);
@@ -75,9 +84,10 @@
     position: sticky;
     z-index: 3;
   }
-  /* Group row (R1) sticks at viewport top; column row (R2) sticks below it */
   table.zonghe thead tr:nth-child(1) th { top: 0; }
-  table.zonghe thead tr:nth-child(2) th { top: 28px; }
+  table.zonghe thead tr:nth-child(2) th {
+    top: var(--r1-height, 22px);  /* JS measures real R1 height after render */
+  }
   /* Excel has no zebra stripe — pure white. Hover only for navigation help. */
   table.zonghe tbody tr:hover td { background: #fff7d6; }
 
@@ -220,6 +230,14 @@ function tdAcct(v) {
   return `<td${cls}>${fmtAccountingInt(v)}</td>`;
 }
 
+function syncStickyOffset() {
+  // Measure R1 height after render so R2 sticks exactly under it (no gap, no overlap).
+  const r1 = document.querySelector("table.zonghe thead tr:nth-child(1) th");
+  if (!r1) return;
+  const h = r1.getBoundingClientRect().height;
+  document.documentElement.style.setProperty("--r1-height", h + "px");
+}
+
 async function load() {
   const r = await fetch("/api/comprehensive").then(r => r.json());
   const rows = r.rows || [];
@@ -250,8 +268,10 @@ async function load() {
     </tr>
   `).join("");
   document.getElementById("zhBody").innerHTML = html;
+  requestAnimationFrame(syncStickyOffset);
 }
 
+window.addEventListener("resize", syncStickyOffset);
 load();
 </script>
 </body>
