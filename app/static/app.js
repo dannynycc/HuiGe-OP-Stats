@@ -81,8 +81,9 @@ function fmtOku(v) {
 
 function render(payload) {
   const { date, view_date, rows, margin } = payload;
-  // 融資餘額 panel
+  // 融資餘額 panel — title 同主表用「M/D(週)」格式
   if (margin) {
+    document.getElementById("marginTitle").textContent = `${fmtMD(date)} 信用交易統計`;
     document.getElementById("twseMarginAmt").textContent = fmtOku(margin.twse_margin_amt_oku);
     document.getElementById("tpexMarginAmt").textContent = fmtOku(margin.tpex_margin_amt_oku);
   }

@@ -129,6 +129,13 @@
     flex-direction: column;     /* 上下排列 */
     gap: 4px;
   }
+  .margin-panel .m-title {
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-thin);
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+    white-space: nowrap;
+  }
   .margin-panel .m-row { white-space: nowrap; }
   .margin-panel .m-label { color: var(--muted); margin-right: 8px; font-size: 16px; }
   .margin-panel .m-value { font-weight: 600; }
@@ -201,8 +208,9 @@
     </tbody>
   </table>
 
-  <!-- 信用交易補充資訊 — 獨立 panel 在表格下方，上下排列 -->
+  <!-- 信用交易補充資訊 — 獨立 panel，標日期 follow Excel R190「115年MM月DD日 信用交易統計」 -->
   <div class="margin-panel" id="marginPanel">
+    <div class="m-title" id="marginTitle">— 信用交易統計</div>
     <div class="m-row">
       <span class="m-label">上市融資餘額</span>
       <span class="m-value" id="twseMarginAmt">—</span>
