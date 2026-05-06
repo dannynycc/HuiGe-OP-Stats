@@ -1,5 +1,33 @@
 # Changelog
 
+## [v0.10.6] - 2026-05-06 07:55
+
+### Added (用戶: 選擇權未平倉的開盤前多空還是要有, historical 留空)
+- 新欄位 `daily_summary.op_pre_open_cp_net` REAL
+- 公式: (CALL OI day + CALL net night) - (PUT OI day + PUT net night)
+  外資 + 自營商 (排除投信)
+- 對 2023-05-04 之後 (有夜盤 op_legal): 計算
+- 對 2020-2023/04 (沒夜盤 op_legal): NULL — 用戶要求 hardcode 留空
+- Backfilled 728 dates, 808 dates 留 NULL
+
+### UI: comprehensive.html 加回「選擇權 開盤前多空」 column
+- R1 group「選擇權未平倉」 colspan=4 (CALL / PUT / CP / 開盤前多空)
+- R1 group「台指期」 仍是 colspan=2 (法人淨部位 + 開盤前多空 = 大台等效)
+- 兩個「開盤前多空」並存:
+  - 台指期 group 的: `fut_pre_open_net` (大台等效 OI + 夜盤)
+  - 選擇權 group 的: `op_pre_open_cp_net` (CALL/PUT 各別 OI + 夜盤 net 差)
+
+### Verified samples
+- 2026-04-30: op_cp_net=-6969 (day), op_pre_open_cp_net=-4334 (day+night)
+- 2020-03-25: op_pre_open_cp_net=NULL (沒夜盤)
+- 對應跟 op_cp_net 該不該等於 fut_pre_open_net 的問題: 兩者完全不同
+  (一個是選擇權, 一個是台指期)
+
+### Code touched
+- `app/db.py`: schema 加 `op_pre_open_cp_net REAL`
+- `scripts/recompute_daily_summary.py`: 算 op_pre_open_cp_net (NULL if no night)
+- `app/static/comprehensive.html`: 17 cols, R1 group 重排 + 加 column
+
 ## [v0.10.5] - 2026-05-06 07:45
 
 ### Fixed (用戶: 選擇權未平倉的開盤前多空是不是亂算)

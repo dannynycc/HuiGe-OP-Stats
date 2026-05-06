@@ -42,6 +42,26 @@ def main():
                 WHERE date = ? AND daynight='day' AND product='臺指選擇權'
                   AND callput='賣權' AND role IN (?, ?)
             """, (d, *LEGAL_ROLES)).fetchone()[0]
+            # op_pre_open_cp_net = (CALL OI day + CALL net night) - (PUT OI day + PUT net night)
+            # NULL for dates without night data (TAIFEX endpoint cutoff = 2023/05/05)
+            night_call = con.execute("""
+                SELECT COALESCE(SUM(net_lots), 0) FROM op_legal
+                WHERE date = ? AND daynight='night' AND product='臺指選擇權'
+                  AND callput='買權' AND role IN (?, ?)
+            """, (d, *LEGAL_ROLES)).fetchone()[0]
+            night_put = con.execute("""
+                SELECT COALESCE(SUM(net_lots), 0) FROM op_legal
+                WHERE date = ? AND daynight='night' AND product='臺指選擇權'
+                  AND callput='賣權' AND role IN (?, ?)
+            """, (d, *LEGAL_ROLES)).fetchone()[0]
+            has_night_op = con.execute(
+                "SELECT 1 FROM op_legal WHERE date = ? AND daynight='night' "
+                "AND product='臺指選擇權' LIMIT 1", (d,)
+            ).fetchone() is not None
+            op_pre_open_cp_net = (
+                int((op_call + night_call) - (op_put + night_put))
+                if has_night_op else None
+            )
             stock_fut = con.execute("""
                 SELECT COALESCE(SUM(oi_net_lots), 0) FROM fut_legal
                 WHERE date = ? AND daynight='day' AND product='股票期貨'
@@ -99,6 +119,7 @@ def main():
                 "op_call_net": int(op_call) if op_call else None,
                 "op_put_net": int(op_put) if op_put else None,
                 "op_cp_net": int(op_call - op_put) if (op_call or op_put) else None,
+                "op_pre_open_cp_net": op_pre_open_cp_net,  # 選擇權開盤前多空 (NULL 對 2023-05-04 之前)
                 "fut_pre_open_net": fut_pre_open_net,  # 開盤前部位 = OI + night
                 "stock_fut_legal_net": int(stock_fut) if stock_fut else None,
                 "twse_margin_pct": twse_pct,

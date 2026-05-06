@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS daily_summary (
     twse_mkt_cap_chao REAL,           -- 兆元 (interpolated 時 mkt_cap_source='interp')
     tpex_mkt_cap_chao REAL,           -- 兆元
     twii_close REAL,                  -- 加權指數 (FMTQIK 第 5 欄)
-    mkt_cap_source TEXT               -- 'official' (TWSE homeApi/週報) / 'interp' (TWII fit) / NULL
+    mkt_cap_source TEXT,              -- 'official' (TWSE homeApi/週報) / 'interp' (TWII fit) / NULL
+    op_pre_open_cp_net REAL           -- 選擇權開盤前多空 (CALL OI+night) - (PUT OI+night), 2023-05-04 起才有
 );
 
 -- TWSE 市值週報 (從 https://www.twse.com.tw/zh/trading/statistics/week.html 下載
