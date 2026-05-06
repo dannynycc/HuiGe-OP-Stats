@@ -225,7 +225,12 @@ Excel 慣例。已驗證 14 個 cross-holiday absorbing dates 全部 day=30 nigh
 - 損益圖（Excel「損益圖」sheet 的 9 checkbox S1-S3/U1-U6 互斥邏輯）— 用戶決定不做
 - 自動排程 / 定時 refresh — 用戶決定不做
 
-## 資料完整度 (v0.10.21 ALL CLEAN, 1536 dates × 17 cols)
+## 資料完整度 (v0.10.34 ALL CLEAN, 1536 dates × 17 cols)
+
+`scripts/full_sweep_all_cols.py` 跑完全段 endpoint cross-check:
+- **0 mismatch / 0 failed** — DB 跟 endpoint 真值 100% 一致
+
+
 
 `daily_summary` 16/17 cols 0 NULL（`op_pre_open_cp_net` 在 2020-2023/04 為 NULL
 是預期，因 TAIFEX 夜盤 endpoint 那段沒料）。

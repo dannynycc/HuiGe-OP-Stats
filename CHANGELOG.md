@@ -1,5 +1,28 @@
 # Changelog
 
+## [v0.10.34] - 2026-05-06 15:30
+
+### 「第 2 DB」 比對 final report
+
+`scripts/full_sweep_all_cols.py` 跑完全段 1536 dates × 4 endpoints
+(tx_close / twse_margin / tpex_margin / tpex_mkt_cap):
+- **Total fixed: 0 cells**
+- **Failed: 0**
+
+= DB 全段跟 endpoint 真值 100% 一致 ✓
+
+我之前誤判 sweep stuck — 因 sweep stdout 進 chain output file 不是
+process redirect file. 一定要看 task output 而不是 自己 redirect.
+
+### Final audit (5 method, all dates)
+- Weekly anchor cross-check: 0 mismatch
+- TWII × ratio MAD-z 5σ: 2 borderline (春節 ratio 微擾)
+- mkt_cap day-over-day jump: 0
+- margin / mkt_cap MAD-z 5σ: 0
+- margin day-over-day jump: 2 (真實武漢 2020-03-13 / 台疫 2021-05-17 crash)
+
+### 結論: DB 高 confidence, 不需 rebuild fresh DB
+
 ## [v0.10.32] - 2026-05-06 15:10
 
 ### Fixed (用戶: 日盤口數欄上下數字對不齊 + 收盤價窄 + 日期超框)

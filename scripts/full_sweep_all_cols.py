@@ -143,9 +143,9 @@ def main():
             failed += 1
         time.sleep(0.4)
 
-        if i % 25 == 0:
+        if i % 10 == 0:
             con.commit()
-            print(f"  [{i}/{len(dates)}] cum fixed: {fixed_per_col}  failed: {failed}")
+            print(f"  [{i}/{len(dates)}] cum fixed: {fixed_per_col}  failed: {failed}", flush=True)
 
     con.commit()
     print()
