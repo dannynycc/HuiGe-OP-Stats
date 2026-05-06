@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<title>融資餘額佔市值比 + 指數 走勢圖</title>
+<title>走勢圖</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
 <style>
   :root { --bg: #ffffff; --fg: #000000; --muted: #6b7280; }
@@ -22,6 +22,14 @@
   }
   header h1 { margin: 0; font-size: 16px; font-weight: 600; }
   header span.muted { color: var(--muted); font-size: 13px; }
+  /* category dropdown — 取代靜態 h1 */
+  .category-select {
+    font-size: 16px; font-weight: 600;
+    padding: 6px 10px; border: 1px solid #ccc;
+    border-radius: 4px; background: #fff;
+    cursor: pointer; color: var(--fg);
+  }
+  .category-select:hover { border-color: #2c5aa0; }
   .nav-btn {
     display: inline-block;
     background: #fff; color: #2c5aa0;
@@ -77,8 +85,11 @@
 </head>
 <body>
 <header>
-  <h1>融資餘額佔市值比 + 指數 走勢圖</h1>
-  <span class="muted">2020-01-02 ~ today</span>
+  <select id="categorySelect" class="category-select">
+    <option value="margin">融資餘額佔市值比 + 指數</option>
+    <option value="stock_fut">股票期貨 法人淨部位</option>
+  </select>
+  <span class="muted">走勢圖 · 2020-01-02 ~ today</span>
   <div class="mode-bar" id="modeBar">
     <button class="mode-btn active" data-mode="stacked">A · 上下雙圖</button>
     <button class="mode-btn"        data-mode="original">B · 純融資%</button>
@@ -104,6 +115,7 @@ const COLOR = {
   twii:       "#991b1b",
   tpexMargin: "#2563eb",
   otcIdx:     "#1e3a8a",
+  stockFut:   "#7c3aed",  // 紫, 跟融資紅藍區分
 };
 
 let plots = [];   // 目前活著的 uPlot instances (resize 用)
@@ -348,6 +360,55 @@ function renderScatter() {
                    size, DATA.otc, DATA.tpexMargin, COLOR.tpexMargin);
 }
 
+// Category: stock_fut (股票期貨 法人淨部位) — 單一 line, 含 0 reference line
+function renderStockFut() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-single";
+  area.innerHTML = "";
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  area.appendChild(panel);
+  const size = getPanelSize("original");
+  const opts = {
+    width: size.w, height: size.h,
+    legend: { show: false },
+    cursor: { drag: { x: true, y: false, setScale: true } },
+    scales: { x: { time: true }, y: { auto: true } },
+    axes: [
+      { values: xAxisVals },
+      { scale: "y", stroke: "#444", size: 80,
+        values: (u, vs) => vs.map(v => v.toLocaleString("en-US", {maximumFractionDigits: 0})) },
+    ],
+    series: [
+      {},
+      { label: "股期法人淨部位", scale: "y",
+        stroke: COLOR.stockFut, width: 1.4,
+        value: (u, v) => v == null ? "" : v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " 口" },
+    ],
+    hooks: {
+      // 在原始 grid line 之上多畫一條 0 水平線, 讓正/負部位一目了然
+      drawAxes: [(u) => {
+        const yZero = u.valToPos(0, "y", true);
+        if (yZero >= u.bbox.top && yZero <= u.bbox.top + u.bbox.height) {
+          const ctx = u.ctx;
+          ctx.save();
+          ctx.strokeStyle = "#888";
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(u.bbox.left, yZero);
+          ctx.lineTo(u.bbox.left + u.bbox.width, yZero);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }],
+    },
+  };
+  const u = new uPlot(opts, [DATA.xsAll, DATA.stockFut], panel);
+  attachWheelZoom(u, DATA.dataMinAll, DATA.dataMaxAll);
+  plots.push(u);
+}
+
 const RENDER = {
   stacked:  renderStacked,
   original: renderOriginal,
@@ -358,6 +419,7 @@ const LEGENDS = {
   stacked:  [["twii","加權指數 (虛)"], ["twseMargin","上市融資%"], ["otcIdx","OTC指數 (虛)"], ["tpexMargin","上櫃融資%"]],
   original: [["twseMargin","上市 TWSE"], ["tpexMargin","上櫃 TPEX"]],
   scatter:  [["twseMargin","上市點 (X=加權, Y=融資%)"], ["tpexMargin","上櫃點 (X=OTC, Y=融資%)"]],
+  stockfut: [["stockFut","股期法人淨部位 (口) — 外資+自營商, 0 線虛灰"]],
 };
 
 function renderLegend(mode) {
@@ -377,14 +439,34 @@ function setMode(mode) {
   document.querySelectorAll(".mode-btn").forEach(b =>
     b.classList.toggle("active", b.dataset.mode === mode));
   renderLegend(mode);
-  // Wait for layout class change → next frame for clientWidth/Height to be correct
   requestAnimationFrame(() => RENDER[mode]());
 }
 
+let CURRENT_CATEGORY = "margin";
+
+function setCategory(cat) {
+  CURRENT_CATEGORY = cat;
+  const modeBar = document.getElementById("modeBar");
+  destroyPlots();
+  if (cat === "margin") {
+    modeBar.style.display = "flex";
+    const active = document.querySelector(".mode-btn.active");
+    setMode(active ? active.dataset.mode : "stacked");
+  } else if (cat === "stock_fut") {
+    modeBar.style.display = "none";
+    renderLegend("stockfut");
+    requestAnimationFrame(() => renderStockFut());
+  }
+}
+
 function handleResize() {
-  // Re-render current mode (uPlot setSize 在 multi-panel 下不易處理 panel 隨容器變)
-  const active = document.querySelector(".mode-btn.active");
-  if (active) setMode(active.dataset.mode);
+  if (CURRENT_CATEGORY === "stock_fut") {
+    destroyPlots();
+    requestAnimationFrame(() => renderStockFut());
+  } else {
+    const active = document.querySelector(".mode-btn.active");
+    if (active) setMode(active.dataset.mode);
+  }
 }
 
 async function init() {
@@ -401,19 +483,28 @@ async function init() {
   const tpexMargin = rows.map(x => x.tpex_margin_pct * 100);
   const twii       = rows.map(x => x.twii_close);
   const otc        = rows.map(x => x.tpex_index_close);
+  // 股票期貨 法人淨部位 (口) — daily_summary.stock_fut_legal_net (外資+自營商)
+  // 用 全部 rows (不過濾 twse_margin_pct), 因為股期 vs 融資 是不同需求
+  const allRows  = (r.rows || []).slice();
+  const xsAll    = allRows.map(x => Math.floor(new Date(x.date+"T00:00:00").getTime()/1000));
+  const stockFut = allRows.map(x => x.stock_fut_legal_net);
   DATA = {
     xs, twseMargin, tpexMargin, twii, otc,
+    xsAll, stockFut,
     dataMin: xs[0], dataMax: xs[xs.length-1],
+    dataMinAll: xsAll[0], dataMaxAll: xsAll[xsAll.length-1],
   };
 
   document.querySelectorAll(".mode-btn").forEach(b =>
     b.addEventListener("click", () => setMode(b.dataset.mode)));
+  document.getElementById("categorySelect").addEventListener("change", (e) =>
+    setCategory(e.target.value));
   window.addEventListener("resize", () => {
     clearTimeout(window._resizeT);
     window._resizeT = setTimeout(handleResize, 150);
   });
 
-  setMode("stacked");
+  setCategory("margin");  // default: 融資餘額 (= margin), 顯示 stacked mode
 }
 
 init();

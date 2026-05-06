@@ -1,5 +1,29 @@
 # Changelog
 
+## [v0.10.46] - 2026-05-06 23:43
+
+### Added: Category dropdown + 股票期貨 法人淨部位 走勢圖
+
+- 用戶: 「左上角 "融資餘額佔市值比 + 指數" 改下拉選單, 加 "股票期貨 法人淨部位" option」
+- Header 靜態 h1 → `<select id="categorySelect">`:
+  - `margin` (default): 融資餘額佔市值比 + 指數 → 顯示 mode bar (A/B/C)
+  - `stock_fut`: 股票期貨 法人淨部位 → 隱藏 mode bar, 單一走勢圖
+
+### 股票期貨 法人淨部位 chart
+- Single panel, 全段 daily line (不 filter null margin)
+- Y 軸: 整數口數 (千分位)
+- 紫色線 (`#7c3aed`) 跟融資紅藍區分
+- 0 reference line 虛灰 (`hooks.drawAxes` 自訂)
+- Hover tooltip 含「口」 unit
+- Insight 看到的: 6 年法人在股期持續加碼空頭, -100k → -650k+, 對應 long stock hedge
+
+### Tech
+- `setCategory(cat)`: 切 category 時 destroyPlots() + show/hide modeBar +
+  RAF render
+- `DATA.xsAll` / `DATA.stockFut` / `dataMinAll` / `dataMaxAll` (= 用 全段 rows,
+  不 filter margin null, 因為股期 col 比 margin col 多覆蓋日期)
+- handleResize() 也處理 stock_fut category re-render
+
 ## [v0.10.45] - 2026-05-06 23:36
 
 ### Removed: D 月份熱力圖 mode + Fixed: panel 底部 legend 被裁

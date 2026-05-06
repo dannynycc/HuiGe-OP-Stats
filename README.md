@@ -132,8 +132,11 @@ stop.bat    # 停掉
 - `http://localhost:8765/` — 主表「For X 開盤前看」(柴柴 6 列彙整)
 - `http://localhost:8765/comprehensive` — **綜合整理 view**：完整 timeseries
   table，復刻 Excel「綜合整理」 sheet（v0.9 起）
-- `http://localhost:8765/chart` — **融資餘額 + 指數 多 mode 走勢圖** (v0.10.41-45)
-  - 3 mode toggle (header button bar):
+- `http://localhost:8765/chart` — **走勢圖 (Category dropdown + multi-mode)** (v0.10.41-46)
+  - **Category dropdown** (v0.10.46):
+    - `融資餘額佔市值比 + 指數` (default, 含 A/B/C mode bar)
+    - `股票期貨 法人淨部位` (單一走勢圖, 紫線 + 0 reference line)
+  - 融資 category 下 3 mode toggle (header button bar):
     - **A · 上下雙圖** (default): 上 panel 加權指數+上市%, 下 panel OTC+上櫃% (各自 dual axis)
     - **B · 純融資%**: 兩條 % line dual axis (= v0.10.41 base, 不含指數)
     - **C · 散佈圖**: 兩 panel scatter, X=指數 Y=融資%, 點 alpha 由淡(2020)→濃(2026),
