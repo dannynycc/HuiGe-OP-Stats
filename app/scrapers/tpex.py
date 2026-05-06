@@ -104,7 +104,7 @@ def fetch_market_stats(date_dash: str) -> dict[str, Any]:
 
 
 def fetch_highlight(date_dash: str) -> dict[str, Any]:
-    """上櫃當日彙總 — 總市值(佰萬元) at fields/data."""
+    """上櫃當日彙總 — 抓 總市值(佰萬元) + 收市指數 (= 上櫃指數收盤)."""
     url = (
         f"https://www.tpex.org.tw/www/zh-tw/afterTrading/highlight"
         f"?date={_date_url_param(date_dash)}&id=&response=json"
@@ -113,7 +113,8 @@ def fetch_highlight(date_dash: str) -> dict[str, Any]:
     r.raise_for_status()
     j = r.json()
     if j.get("stat") != "ok" or not j.get("tables"):
-        return {"actual_date": None, "tpex_mkt_cap_million": None}
+        return {"actual_date": None, "tpex_mkt_cap_million": None,
+                "tpex_index_close": None}
     tab = j["tables"][0]
     actual_date = None
     raw_date = tab.get("date")
@@ -125,10 +126,17 @@ def fetch_highlight(date_dash: str) -> dict[str, Any]:
     fields: list[str] = tab.get("fields", [])
     rows = tab.get("data", [])
     mkt_cap_million: float | None = None
+    index_close: float | None = None
     if rows:
-        try:
-            idx = fields.index("總市值(佰萬元)")
-            mkt_cap_million = _to_float(rows[0][idx])
-        except (ValueError, IndexError):
-            pass
-    return {"actual_date": actual_date, "tpex_mkt_cap_million": mkt_cap_million}
+        for fname, key in [("總市值(佰萬元)", "mkt_cap"), ("收市指數", "index")]:
+            try:
+                idx = fields.index(fname)
+                val = _to_float(rows[0][idx])
+                if key == "mkt_cap":
+                    mkt_cap_million = val
+                else:
+                    index_close = val
+            except (ValueError, IndexError):
+                pass
+    return {"actual_date": actual_date, "tpex_mkt_cap_million": mkt_cap_million,
+            "tpex_index_close": index_close}

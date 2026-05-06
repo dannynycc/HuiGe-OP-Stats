@@ -70,7 +70,7 @@ POST body: `queryDate=YYYY/MM/DD&commodityId=&MarketCode=0&queryType=1`
 |---|---|
 | `tpex.org.tw/web/stock/margin_trading/margin_balance/margin_bal_result.php?l=zh-tw&o=csv&d=NNN/MM/DD&s=0,asc,0` | Big5 CSV |
 | `tpex.org.tw/www/zh-tw/afterTrading/marketStats?type=Daily&date=YYYY%2FMM%2FDD&id=&response=json` | UTF-8 JSON |
-| `tpex.org.tw/www/zh-tw/afterTrading/highlight?date=YYYY%2FMM%2FDD&id=&response=json` | UTF-8 JSON |
+| `tpex.org.tw/www/zh-tw/afterTrading/highlight?date=YYYY%2FMM%2FDD&id=&response=json` | UTF-8 JSON (上櫃總市值 + **收市指數** = 上櫃指數收盤, v0.10.42 起) |
 
 ### Reference: TWSE 官方休市日曆（驗證用，不入庫）
 - 網頁版：<https://www.twse.com.tw/zh/trading/holiday.html>
@@ -116,7 +116,7 @@ start.bat / stop.bat
 - `fut_price(date, contract, expiry, open, high, low, close, settle, change, ah_vol, day_vol, total_vol, oi, best_bid, best_ask, PK(date,contract,expiry))`
 - `credit_twse(date, item, buy, sell, repay, prev_balance, today_balance, PK(date,item))`
 - `credit_summary(date, twse_margin_balance, twse_turnover, twse_mkt_cap, tpex_margin_balance, tpex_turnover, tpex_mkt_cap, PK(date))`
-- `daily_summary(date PK, tx_close, op_legal_net, op_call_net, op_put_net, op_cp_net, fut_pre_open_net, stock_fut_legal_net, twse_margin_pct, tpex_margin_pct, twse_margin_amt_oku, tpex_margin_amt_oku, twse_mkt_cap_chao, tpex_mkt_cap_chao, twii_close, mkt_cap_source, op_pre_open_cp_net)` *(17 cols; op_pre_open_cp_net v0.10.6 起)*
+- `daily_summary(date PK, tx_close, op_legal_net, op_call_net, op_put_net, op_cp_net, fut_pre_open_net, stock_fut_legal_net, twse_margin_pct, tpex_margin_pct, twse_margin_amt_oku, tpex_margin_amt_oku, twse_mkt_cap_chao, tpex_mkt_cap_chao, twii_close, mkt_cap_source, op_pre_open_cp_net, tpex_index_close)` *(18 cols; tpex_index_close v0.10.42 起)*
 - `mkt_cap_weekly(date PK, twse_mkt_cap_oku, source)` *(v0.9.7 起；TWSE 市值週報 import)*
 - `option_settlement_dates(date, product, contract_month, settlement_price, PK(date,product))` *(v0.10.15 起；TEO 月選結算日)*
 - `refresh_log(id, ts, ok, errors_json)`
@@ -135,6 +135,7 @@ stop.bat    # 停掉
 - `http://localhost:8765/chart` — **融資餘額佔市值比走勢圖** (v0.10.41)
   - 雙 Y 軸: 上市 TWSE 紅 (左) + 上櫃 TPEX 藍 (右)
   - 滑鼠滾輪 zoom, 拖曳 pan, 雙擊 reset
+  - **zoom-out 上限 = 全部 data 跨度** (v0.10.42 起 clamp 到 [xs[0], xs[last]])
   - 用 uPlot CDN (no build)
 
 ### Refresh 行為 (v0.10.27 起 catch-up mode, v0.10.37 統一兩 view)
@@ -164,9 +165,10 @@ stop.bat    # 停掉
   - row 之間 digit 位置上下對齊 (column-style alignment)
 
 ### 綜合整理 view 功能 (v0.10.x)
-- **17 cols** layout：For 開盤前看 / 前一日 / 加權指數 / 台指期收盤 / 法人淨部位 /
-  開盤前多空 / CALL / PUT / CP合計 / 選擇權開盤前多空 / 股期 / 上市%/上櫃% /
-  上市億/上櫃億 / 上市兆/上櫃兆
+- **18 cols** layout：For 開盤前看 / 前一日 / 加權指數 / 台指期收盤 / **OTC指數** /
+  法人淨部位 / 開盤前多空 / CALL / PUT / CP合計 / 選擇權開盤前多空 / 股期 /
+  上市%/上櫃% / 上市億/上櫃億 / 上市兆/上櫃兆
+  *(v0.10.42: 「指數收盤」 group 加第三 col「OTC指數」 = 上櫃指數收盤)*
 - **電子選擇權月選結算日 highlight**：那 row 整列淡黃 (`#FEF3C7`)，hover 變 amber
 - **色階 (融資餘額佔市值比)**：上市/上櫃 各自獨立綠 → 黃 → 紅 漸層
 - **窄 viewport** (≤1500px) 自動橫向 scroll，每欄 nowrap fit
@@ -194,7 +196,7 @@ python scripts/backfill.py --dates 2024-03-15,2024-03-18
 ## 已驗證資料正確性
 
 ### Backfill 涵蓋範圍 (v0.10.x 現況)
-- DB 涵蓋 **2020-01-02 ~ 2026-05-05**，共 **1,536 個 trading days**
+- DB 涵蓋 **2020-01-02 ~ 2026-05-06**，共 **1,537 個 trading days**
 - 2023/05/05 起 TAIFEX 直抓 (TX/TE/TF/op/fut)
 - 2020/01 ~ 2023/05/04 用 FinMind (TaiwanFuturesDaily + Options/Futures Institutional)
 - 加權指數 1536 days 全段用 FinMind `TaiwanStockPrice` data_id='TAIEX'
@@ -235,7 +237,7 @@ Excel 慣例。已驗證 14 個 cross-holiday absorbing dates 全部 day=30 nigh
 - 損益圖（Excel「損益圖」sheet 的 9 checkbox S1-S3/U1-U6 互斥邏輯）— 用戶決定不做
 - 自動排程 / 定時 refresh — 用戶決定不做
 
-## 資料完整度 (v0.10.34 ALL CLEAN, 1536 dates × 17 cols)
+## 資料完整度 (v0.10.42 ALL CLEAN, 1537 dates × 18 cols)
 
 `scripts/full_sweep_all_cols.py` 跑完全段 endpoint cross-check:
 - **0 mismatch / 0 failed** — DB 跟 endpoint 真值 100% 一致

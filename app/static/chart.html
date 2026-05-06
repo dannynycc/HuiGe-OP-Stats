@@ -167,18 +167,25 @@ async function init() {
 
   const u = new uPlot(opts, data, document.getElementById("chartArea"));
 
-  // 滑鼠滾輪 zoom (uPlot 沒內建, 自己加)
+  // 滑鼠滾輪 zoom (uPlot 沒內建, 自己加).
+  // Clamp 到 [xs[0], xs[last]] — zoom-out 不可超過 data 起終點.
+  const dataMin = xs[0];
+  const dataMax = xs[xs.length - 1];
   function attachWheelZoom(plot) {
     plot.over.addEventListener("wheel", (e) => {
       e.preventDefault();
       const factor = e.deltaY < 0 ? 0.85 : 1.18;  // up=zoom-in, down=zoom-out
       const xMin = plot.scales.x.min, xMax = plot.scales.x.max;
-      // pivot at mouse x position
       const rect = plot.over.getBoundingClientRect();
       const cursorX = e.clientX - rect.left;
       const cursorVal = plot.posToVal(cursorX, "x");
-      const newMin = cursorVal - (cursorVal - xMin) * factor;
-      const newMax = cursorVal + (xMax - cursorVal) * factor;
+      let newMin = cursorVal - (cursorVal - xMin) * factor;
+      let newMax = cursorVal + (xMax - cursorVal) * factor;
+      // Hard clamp 到 data range (zoom-out 上限 = full data 跨度)
+      if (newMin < dataMin) newMin = dataMin;
+      if (newMax > dataMax) newMax = dataMax;
+      // Edge case: 如果 clamp 後 newMin >= newMax, fallback 到 full range
+      if (newMin >= newMax) { newMin = dataMin; newMax = dataMax; }
       plot.setScale("x", { min: newMin, max: newMax });
     }, { passive: false });
   }

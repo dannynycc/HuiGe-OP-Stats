@@ -139,11 +139,7 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
 
 
 def _fetch_twii(target_date: str) -> dict[str, Any]:
-    """加權指數 (TAIEX) close from FinMind TaiwanStockPrice.
-
-    refresh source list (12 endpoints) doesn't include TWII because TWSE's own
-    MI_5MINS_HIST has WAF rate-limit issues. We use FinMind which is stable.
-    """
+    """加權指數 (TAIEX) close from FinMind TaiwanStockPrice."""
     r = requests.get(
         "https://api.finmindtrade.com/api/v4/data",
         params={"dataset": "TaiwanStockPrice", "data_id": "TAIEX",
@@ -156,6 +152,11 @@ def _fetch_twii(target_date: str) -> dict[str, Any]:
         if row.get("date") == target_date and row.get("close") is not None:
             return {"actual_date": target_date, "twii_close": float(row["close"])}
     return {"actual_date": None, "twii_close": None}
+
+
+# 上櫃指數 (OTC index close) 由 tpex.fetch_highlight 一起回傳 ("收市指數" field).
+# v0.10.42 起改用 TPEX 官方 highlight (避免 FinMind rate limit) — actual_date guard
+# 在 write_to_db 內處理.
 
 
 def _slash(date_dash: str) -> str:
@@ -573,6 +574,11 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
         # (post-aggregate may set 'interp' after this write)
         if summary.get("twse_mkt_cap_chao") is not None:
             summary["mkt_cap_source"] = "official"
+        # 上櫃指數收盤 — 從 tpex.fetch_highlight 取「收市指數」, 但只有 highlight
+        # actual_date 跟 target_date 一致才寫 (防 endpoint 回 stale day, v2.08 教訓)
+        tp_h = results.get("tpex_highlight") or {}
+        if tp_h.get("actual_date") == date_dash:
+            summary["tpex_index_close"] = tp_h.get("tpex_index_close")
 
         existing = con.execute(
             "SELECT * FROM daily_summary WHERE date = ?", (date_dash,)
@@ -582,7 +588,7 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
                 "twse_margin_pct", "tpex_margin_pct",
                 "twse_margin_amt_oku", "tpex_margin_amt_oku",
                 "twse_mkt_cap_chao", "tpex_mkt_cap_chao",
-                "twii_close", "mkt_cap_source"]
+                "twii_close", "mkt_cap_source", "tpex_index_close"]
         merged = {}
         for c in cols:
             new_val = summary.get(c)

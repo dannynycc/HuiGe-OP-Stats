@@ -1,5 +1,47 @@
 # Changelog
 
+## [v0.10.42] - 2026-05-06 17:25
+
+### Added: 上櫃指數 (OTC index) col + chart zoom-out clamp
+
+#### 綜合整理 加 OTC指數 col
+- `daily_summary` schema 加 `tpex_index_close REAL` (17 → 18 cols)
+- 「指數收盤」 R1 group colspan 2→3, 第三 col = OTC指數 (千分位+2 位小數)
+- Backfill 1537 rows (2020-01-02 ~ 2026-05-06) 全段成功
+
+#### 改用 TPEX 官方 endpoint (取代 FinMind)
+- 用戶: 「FinMind TPEx 全段都有, 開幹 → 你要不要去抓官方資料, 要不然 FinMind 你
+  等一下如果又被 rate limit」
+- TPEX 官方 highlight endpoint 第 5 個 fields 是「**收市指數**」, 直接就是上櫃指數
+  收盤 — 不用多開 HTTP, 跟既有 mkt_cap 共用同一 call
+- `tpex.fetch_highlight` payload 多回 `tpex_index_close`
+- `refresh.write_to_db` 寫入時 enforce `actual_date == target_date` (防 stale day,
+  v2.08 STOCK_DAY_ALL 災難教訓)
+- 移除 `_fetch_tpex_index` (FinMind helper)
+- Cross-check: 既有 1537 rows (FinMind backfill) vs TPEX 官方 highlight 對 8 個
+  random + 邊界 dates **0 mismatch** — backfill data 不需重抓, exact 一致 (407.44)
+
+#### Chart zoom-out clamp (v0.10.41 build-on)
+- 用戶: 「我一直 zoom out 時, 應該極限就是起始日 & 終點日吧」
+- `attachWheelZoom` 新增 `dataMin`/`dataMax` clamp:
+  - newMin < dataMin → newMin = dataMin
+  - newMax > dataMax → newMax = dataMax
+  - Edge: clamp 後 newMin >= newMax → fallback 全 range
+- 拖曳框選 zoom 自動繼承 (因為 visible 已 clamped)
+
+### Tech
+- `app/db.py` schema: +`tpex_index_close REAL`
+- `app/scrapers/tpex.py` `fetch_highlight`: 多抓「收市指數」 field
+- `app/refresh.py` `write_to_db`: 加 actual_date guard + cols list 加 `tpex_index_close`
+- `app/static/comprehensive.html`: R1 colspan 2→3, R2 加 OTC指數, tbody render 加 cell
+- `app/static/chart.html`: wheel handler 加 dataMin/dataMax clamp
+
+### Verified
+- E2E single-day refresh: DB 寫入 407.44 對 2026-05-05 ✓
+- Random 8 dates × FinMind backfill vs TPEX 官方: 0 mismatch ✓
+- Playwright visual: 18 cells per row, OTC指數 col fits 80px width, 字不超框 ✓
+- Headers: R1 「指數收盤」 colspan=3 covering 加權指數+台指期+OTC指數 ✓
+
 ## [v0.10.41] - 2026-05-06 17:50
 
 ### Added: 融資餘額佔市值比 走勢圖 `/chart`
