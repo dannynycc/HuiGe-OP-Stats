@@ -146,10 +146,14 @@ stop.bat    # 停掉
 - 兩 view header 都有 Refresh button (主表 / 綜合整理 都可 trigger refresh)
 - API responses 加 `Cache-Control: no-cache` 強制 browser fresh fetch
 
-### 主表 layout (v0.10.29-30 防抖動)
-- `table-layout: fixed` — col widths 鎖死, 切日期不抖動
+### 主表 layout (v0.10.29-32)
+- `table-layout: fixed` — col widths 鎖死, 切日期不抖動 (v0.10.29)
+- `max-width: 1300px` (v0.10.32, 從 1050 拉寬容下日期/header)
 - col widths 經 Playwright 多 viewport / 多 dates 驗證 0 overflow
   (corner cell 14% 容 「For YYYY/M/D(週) 開盤前看」, 開盤前多空 12% 容 header + paren)
+- 數字 cells `font-variant-numeric: tabular-nums` (v0.10.32)
+  - 每 char (digit/comma/minus/paren) 等寬 9.5px
+  - row 之間 digit 位置上下對齊 (column-style alignment)
 
 ### 綜合整理 view 功能 (v0.10.x)
 - **17 cols** layout：For 開盤前看 / 前一日 / 加權指數 / 台指期收盤 / 法人淨部位 /
