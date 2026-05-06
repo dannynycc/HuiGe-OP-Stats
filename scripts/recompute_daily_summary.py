@@ -128,13 +128,19 @@ def main():
                 "tpex_margin_amt_oku": tpex_margin_oku,
                 "twse_mkt_cap_chao": twse_mkt_chao,
                 "tpex_mkt_cap_chao": tpex_mkt_chao,
+                # carry-over fields (recompute can't derive from raw, must preserve from existing)
+                "twii_close": None,        # filled from existing if present
+                "mkt_cap_source": None,    # filled from existing if present
             }
             if all(v is None for v in values.values()):
                 skipped += 1
                 continue
 
             # Merge with existing row (preserve any non-NULL fields already there
-            # that we couldn't recompute, e.g. tx_close from Excel migration)
+            # that we couldn't recompute, e.g. tx_close from Excel migration,
+            # twii_close from FinMind backfill, mkt_cap_source flag).
+            # Critical: SQLite INSERT OR REPLACE 把所有 col 重寫，沒列出的會變 NULL,
+            # 所以 carry-over 欄位也必須在 INSERT cols list 裡並 fill from existing.
             existing = con.execute(
                 "SELECT * FROM daily_summary WHERE date = ?", (d,)
             ).fetchone()

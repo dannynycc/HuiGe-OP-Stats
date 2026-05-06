@@ -284,7 +284,7 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
             "SELECT * FROM daily_summary WHERE date = ?", (date_dash,)
         ).fetchone()
         cols = ["tx_close", "op_legal_net", "op_call_net", "op_put_net", "op_cp_net",
-                "fut_pre_open_net", "stock_fut_legal_net",
+                "op_pre_open_cp_net", "fut_pre_open_net", "stock_fut_legal_net",
                 "twse_margin_pct", "tpex_margin_pct",
                 "twse_margin_amt_oku", "tpex_margin_amt_oku",
                 "twse_mkt_cap_chao", "tpex_mkt_cap_chao"]
@@ -358,6 +358,58 @@ def compute_daily_summary(target_date: str, results: dict[str, Any]) -> dict[str
                 sf += v
                 has_sf = True
     out["stock_fut_legal_net"] = sf if has_sf else None
+
+    # op_legal_net (台指期等效大台 OI 淨) = 大台 OI + 小台 OI/4 + 微台 OI/20
+    # fut_pre_open_net = op_legal_net + 同樣 components 的夜盤 net_lots
+    MICRO_TX_LAUNCH = "2022-03-28"
+    has_micro = target_date >= MICRO_TX_LAUNCH
+    tx_components = [("臺股期貨", 1.0), ("小型臺指期貨", 4.0)]
+    if has_micro:
+        tx_components.append(("微型臺指期貨", 20.0))
+
+    fut_night_rows = _safe_rows(results.get("fut_night"))
+    tx_oi = 0.0
+    tx_night = 0.0
+    has_tx_oi = False
+    has_tx_night = False
+    for product, factor in tx_components:
+        for r in fut_rows:
+            if r.get("product") == product and r.get("role") in LEGAL_ROLES:
+                v = r.get("oi_net_lots")
+                if v is not None:
+                    tx_oi += v / factor
+                    has_tx_oi = True
+        for r in fut_night_rows:
+            if r.get("product") == product and r.get("role") in LEGAL_ROLES:
+                v = r.get("net_lots")
+                if v is not None:
+                    tx_night += v / factor
+                    has_tx_night = True
+    out["op_legal_net"] = round(tx_oi, 2) if has_tx_oi else None
+    out["fut_pre_open_net"] = (
+        round(tx_oi + tx_night) if (has_tx_oi or has_tx_night) else None
+    )
+
+    # op_pre_open_cp_net = (CALL OI day + CALL night net) - (PUT OI day + PUT night net)
+    # NULL if no night data (TAIFEX endpoint cutoff = 2023/05/05)
+    op_night_rows = _safe_rows(results.get("op_night"))
+    night_call, night_put = 0, 0
+    has_night_call, has_night_put = False, False
+    for r in op_night_rows:
+        if r.get("product") != "臺指選擇權" or r.get("role") not in LEGAL_ROLES:
+            continue
+        v = r.get("net_lots")
+        if v is None:
+            continue
+        if r.get("callput") == "買權":
+            night_call += v
+            has_night_call = True
+        elif r.get("callput") == "賣權":
+            night_put += v
+            has_night_put = True
+    has_op_night = has_night_call or has_night_put
+    if has_call and has_put and has_op_night:
+        out["op_pre_open_cp_net"] = (call_net + night_call) - (put_net + night_put)
 
     # tx_close — only write if fut_price actual date matches the target;
     # the GET-only futDailyMarketExcel always returns TODAY, so a backfill

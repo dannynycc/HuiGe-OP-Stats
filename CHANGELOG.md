@@ -1,5 +1,49 @@
 # Changelog
 
+## [v0.10.11] - 2026-05-06 11:30
+
+### Audit (用戶: refresh 後綜合整理表所有 data 都要最新)
+
+#### 找到 3 個 column refresh 後不會更新
+- `op_legal_net` (台指期等效大台 OI)
+- `fut_pre_open_net` (開盤前多空 = OI + 夜盤)
+- `op_pre_open_cp_net` (選擇權開盤前多空, v0.10.6 加 column 沒寫)
+
+Root cause: `cols` list 列了 `fut_pre_open_net` 但 `compute_daily_summary`
+function 沒實作 → 永遠回傳 None → merge 時用 stale 值
+
+#### Fix
+- `compute_daily_summary` 加 3 個 column 的計算邏輯:
+  - 大台 OI + 小台 OI/4 + 微台 OI/20 (微台 2022-03-28 後)
+  - 加 fut_night net 同樣 components 算 fut_pre_open_net
+  - 選擇權 CALL/PUT day OI + night net 算 op_pre_open_cp_net
+- `cols` 加入 `op_pre_open_cp_net`
+
+#### Bug 修副作用
+- `recompute_daily_summary.py` INSERT OR REPLACE 沒列 `twii_close` /
+  `mkt_cap_source` → 跑全段 wipe 1536 個 twii ⚠️
+- 立刻 inline 用 FinMind backfill 1536 rows twii_close
+- 重 tag 265 official mkt_cap rows + 跑 recompute_mktcap_interp 補 1271 interp
+
+### 最終 audit (1536 dates × 16 cols)
+- 全 0 NULL ✓ except `op_pre_open_cp_net` 808 NULL (= 2020-2023/04 沒夜盤
+  預期 NULL, 不是 bug)
+
+### 結論: refresh 後 16 個 column 都最新
+| col | refresh 後更新? |
+|---|---|
+| tx_close | ✓ (TX 端點) |
+| twii_close | ✓ (v0.10.10 加 FinMind) |
+| op_legal_net | ✓ (這 PR 加) |
+| op_call_net / op_put_net / op_cp_net | ✓ (一直有) |
+| op_pre_open_cp_net | ✓ (這 PR 加) |
+| fut_pre_open_net | ✓ (這 PR 加) |
+| stock_fut_legal_net | ✓ (一直有) |
+| twse/tpex_margin_amt_oku | ✓ (TWSE/TPEX 端點) |
+| twse/tpex_mkt_cap_chao | ✓ (TWSE 5-day or interp via _post_refresh_aggregate) |
+| twse/tpex_margin_pct | ✓ (派生) |
+| mkt_cap_source | ✓ (post-aggregate set) |
+
 ## [v0.10.10] - 2026-05-06 11:00
 
 ### Fixed (用戶: 2026/5/6 加權指數空, 早上 refresh 過了還是空)
