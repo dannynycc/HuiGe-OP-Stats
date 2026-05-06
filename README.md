@@ -142,8 +142,14 @@ stop.bat    # 停掉
   2. Row count sanity: op=30 / fut=73 才算完整
   3. Conflict detection: snapshot DB before refresh, 比對 9 cols diff > 0.5% 列出
 - 跑完 outlier audit on 補的 dates (day-over-day mkt_cap / margin vs TWII)
-- 兩 view (主表 / 綜合整理) 都 query `daily_summary`, refresh 後 Ctrl+F5 自動同步
+- 兩 view (主表 / 綜合整理) 都 query `daily_summary`, refresh 後**自動 reload** (無需 Ctrl+F5, v0.10.28)
+- 兩 view header 都有 Refresh button (主表 / 綜合整理 都可 trigger refresh)
 - API responses 加 `Cache-Control: no-cache` 強制 browser fresh fetch
+
+### 主表 layout (v0.10.29-30 防抖動)
+- `table-layout: fixed` — col widths 鎖死, 切日期不抖動
+- col widths 經 Playwright 多 viewport / 多 dates 驗證 0 overflow
+  (corner cell 14% 容 「For YYYY/M/D(週) 開盤前看」, 開盤前多空 12% 容 header + paren)
 
 ### 綜合整理 view 功能 (v0.10.x)
 - **17 cols** layout：For 開盤前看 / 前一日 / 加權指數 / 台指期收盤 / 法人淨部位 /
