@@ -1,5 +1,37 @@
 # Changelog
 
+## [v0.10.15] - 2026-05-06 12:30
+
+### Added (用戶: 標記電子選擇權月選結算日)
+
+#### 新 schema: option_settlement_dates table
+```sql
+CREATE TABLE option_settlement_dates (
+    date TEXT NOT NULL,
+    product TEXT NOT NULL,        -- 'TEO' / 'TXO' / 'TFO'
+    contract_month TEXT,           -- '202604' (純 6-digit = 月選)
+    settlement_price REAL,
+    PRIMARY KEY (date, product)
+);
+```
+
+#### Source: TAIFEX optIndxFSP endpoint
+- URL: `https://www.taifex.com.tw/cht/5/optIndxFSP`
+- POST form: `start_year`, `start_month`, `end_year`, `end_month`, `commodityIds=8` (TEO)
+- Response: HTML table 含 (最後結算日, 契約月份, settlement price)
+- Filter contract_month matching `^\d{6}$` 為**月選** (排除週選 W1-W5 / F1-F5)
+
+#### Backfilled 67 TEO 月選結算日 (2020/10/21 ~ 2026/04/15)
+- TEO 上市 2019/10, 之前 2020/01-09 沒這 contract → daily_summary 那段不會 highlight
+
+#### UI: comprehensive view 加 row highlight
+- `/api/comprehensive` payload 多 `is_settlement: bool`
+- `tr.settlement` background `#FFF8DC` (cornsilk 淡黃)
+- hover 變 `#FFEFA0` (深一點黃)
+
+### Verified
+- Playwright: 67 `tr.settlement` rows / 1536 total ✓ 跟 DB 一致
+
 ## [v0.10.14] - 2026-05-06 11:55
 
 ### UI (用戶: 切換按鈕要直覺清晰)

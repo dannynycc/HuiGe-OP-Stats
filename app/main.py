@@ -131,8 +131,16 @@ def api_comprehensive() -> dict[str, Any]:
             next_map[d] = trading_dates[i + 1]
         else:
             next_map[d] = _next_weekday_fallback(d)
+
+    # 月選結算日 (TEO 等) — 用來在 UI 高亮 row
+    with connect() as con:
+        settlement_set = {r[0] for r in con.execute(
+            "SELECT DISTINCT date FROM option_settlement_dates WHERE product='TEO'"
+        )}
+
     for r in rows:
         r["view_date"] = next_map.get(r["date"])
+        r["is_settlement"] = r["date"] in settlement_set
     return {"rows": rows}
 
 

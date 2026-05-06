@@ -101,6 +101,9 @@
 
   /* Negative values get red — qualify selector to beat .zonghe td { color } (0,1,2) */
   table.zonghe td.neg { color: var(--neg-text); }
+  /* 電子選擇權 (TEO) 月選結算日 整 row 高亮淡黃, 區別 hover (淡黃→深黃) */
+  table.zonghe tbody tr.settlement td { background: #FFF8DC; }   /* cornsilk-ish */
+  table.zonghe tbody tr.settlement:hover td { background: #FFEFA0; }
   /* col widths via <colgroup> — 確保 group 下的 上市/上櫃 sub-col 等寬 */
   table.zonghe { table-layout: fixed; }
 
@@ -285,7 +288,7 @@ async function load() {
   // Reverse (newest first) so latest 日期在最上
   rows.reverse();
   const html = rows.map(r => `
-    <tr>
+    <tr${r.is_settlement ? ' class="settlement"' : ''}>
       <td style="text-align:left">${fmtMD(r.view_date)}</td>
       <td style="text-align:left">${fmtMD(r.date)}</td>
       ${tdTwii(r.twii_close)}

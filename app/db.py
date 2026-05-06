@@ -94,6 +94,16 @@ CREATE TABLE IF NOT EXISTS mkt_cap_weekly (
     source TEXT                        -- 'twse_weekly_xls' 等
 );
 
+-- 選擇權月選結算日 (來自 TAIFEX optIndxFSP endpoint, commodityIds=8 為 TEO)
+-- contract_month 純 6-digit = 月選, 排除週選 W1-W5 / F1-F5
+CREATE TABLE IF NOT EXISTS option_settlement_dates (
+    date TEXT NOT NULL,                -- 結算日 YYYY-MM-DD
+    product TEXT NOT NULL,             -- 'TEO' / 'TXO' / 'TFO'
+    contract_month TEXT,               -- '202604'
+    settlement_price REAL,
+    PRIMARY KEY (date, product)
+);
+
 CREATE TABLE IF NOT EXISTS refresh_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ts TEXT NOT NULL,
