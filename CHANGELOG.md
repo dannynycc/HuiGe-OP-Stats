@@ -1,5 +1,44 @@
 # Changelog
 
+## [v0.10.52] - 2026-05-07 07:50
+
+### Added: 第三 chart category — 法人CP合計多空 vs 加權指數漲跌幅
+
+#### 用戶 ask
+- 「做第三張圖表: 法人CP合計多空 與 當天加權指數漲跌幅的對照圖」
+- 「研究 法人CP合計多空 與 當天 OR 近期波段 加權漲跌的關係/連動程度」
+- 「一段時間如果法人CP多空都是負數很大, 會不會對那段時間加權指數造成下跌壓力」
+
+#### Implementation
+- Category dropdown 加 `cp_vs_index` (= 法人CP合計多空 vs 加權指數漲跌幅)
+- Sub-mode bar (4 horizon toggle):
+  - **T 同期**: cp[i] vs (twii[i]/twii[i-1]-1)*100  ← 當天漲跌幅
+  - **T+1 隔日**: cp[i] vs (twii[i+1]/twii[i]-1)*100
+  - **T+5 一週**: cp[i] vs (twii[i+5]/twii[i]-1)*100  ← 累計
+  - **T+20 一個月**: cp[i] vs (twii[i+20]/twii[i]-1)*100
+- Panel 1 (上): time series, 3 series:
+  - cp 當天 (細實線, cyan #0891b2) — 看 daily noise
+  - **cp 5 日平均** (粗實線, deep teal #155e75) — 看持續性偏多/偏空
+  - 加權 horizon 漲跌% (右軸虛線, 深灰) — 對照
+  - 0 線各軸獨立繪 (左 cp 多空中性, 右 漲跌平)
+- Panel 2 (下): scatter X=cp 當天 Y=horizon 漲跌% + Pearson r 白話 verdict
+
+#### 新增/重用 helper
+- `rollingMean(arr, win)`: N 日 rolling mean
+- `futureReturn(twii, horizon)`: 0 = 同期, N>0 = 累計 N 日
+- `makeCpTimeSeriesPanel`: 新, 3 series + 雙軸 0 線
+- `drawScatterPanel`: refactor 加 opts (xName/yName/xFmt/yFmt) 讓 verdict text 不再
+  hardcode margin context
+
+#### Statistical findings (n=1536, 2020-01 ~ 2026-05)
+- T 同期 r = **+0.299** → 中度弱同步 (法人 CP 跟大盤當天一起動)
+- T+1 隔日 r = +0.076 → 幾乎不相關
+- T+5 一週 r = +0.114 → 幾乎不相關
+- T+20 一個月 r = +0.049 → 幾乎不相關
+- 5 日平均 cp 對未來 r 也都 ≈ 0 (T+5 +0.078, T+20 +0.016)
+- **白話結論**: 法人 CP 「持續看空 → 大盤會跌」 在 6 年資料上**統計上不成立**。
+  CP 部位只反映同期狀態, 沒有預測未來的能力。
+
 ## [v0.10.51] - 2026-05-07 07:31
 
 ### 兩個 bug fix (用戶: 5/6 夜盤抓不到 + 5/7 早上不該出現 row)

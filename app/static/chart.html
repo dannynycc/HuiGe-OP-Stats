@@ -88,12 +88,19 @@
   <select id="categorySelect" class="category-select">
     <option value="margin">融資餘額佔市值比 + 指數</option>
     <option value="stock_fut">股票期貨 法人淨部位</option>
+    <option value="cp_vs_index">法人CP合計多空 vs 加權指數漲跌幅</option>
   </select>
   <span class="muted">走勢圖 · 2020-01-02 ~ today</span>
   <div class="mode-bar" id="modeBar">
     <button class="mode-btn active" data-mode="stacked">A · 上下雙圖</button>
     <button class="mode-btn"        data-mode="original">B · 純融資%</button>
     <button class="mode-btn"        data-mode="scatter">C · 散佈圖</button>
+  </div>
+  <div class="mode-bar" id="cpHorizonBar" style="display:none">
+    <button class="mode-btn active" data-horizon="0">T 同期 (當天 %)</button>
+    <button class="mode-btn"        data-horizon="1">T+1 隔日</button>
+    <button class="mode-btn"        data-horizon="5">T+5 一週</button>
+    <button class="mode-btn"        data-horizon="20">T+20 一個月</button>
   </div>
   <a href="/comprehensive" class="nav-btn">← 回綜合整理</a>
 </header>
@@ -115,9 +122,11 @@ const COLOR = {
   twii:       "#991b1b",
   tpexMargin: "#2563eb",
   otcIdx:     "#1e3a8a",
-  stockFut:   "#7c3aed",  // 紫 (panel 1 主, 左軸)
-  basis:      "#059669",  // 翠綠 (panel 2 主, 左軸) — 跟 紫色 complementary, 跟 灰 對比強
-  txClose:    "#374151",  // 深灰 slate-700 (兩 panel 右軸 reference, dashed) — 看得清又不搶
+  stockFut:   "#7c3aed",  // 紫 (stock_fut panel 1 主)
+  basis:      "#059669",  // 翠綠 (stock_fut panel 2 主)
+  txClose:    "#374151",  // 深灰 (右軸參照線)
+  cpNet:      "#0891b2",  // cyan-600 (cp_vs_index 主, 跟 stockFut 紫區分)
+  twiiReturn: "#374151",  // 深灰 (cp_vs_index 右軸 漲跌% 參照線)
 };
 
 let plots = [];   // 目前活著的 uPlot instances (resize 用)
@@ -272,7 +281,12 @@ function pearsonR(xs, ys) {
 }
 
 // Mode C: 散佈圖 — 兩 panel, 自繪 canvas, 含 Pearson r
-function drawScatterPanel(container, title, size, xData, yData, color) {
+function drawScatterPanel(container, title, size, xData, yData, color, opts) {
+  opts = opts || {};
+  const xName = opts.xName || "X";
+  const yName = opts.yName || "Y";
+  const yFmt  = opts.yFmt  || ((v) => v.toFixed(2) + "%");
+  const xFmt  = opts.xFmt  || ((v) => v.toLocaleString("en-US", {maximumFractionDigits: 0}));
   const panel = document.createElement("div");
   panel.className = "panel";
   panel.style.width = size.w + "px";
@@ -304,14 +318,14 @@ function drawScatterPanel(container, title, size, xData, yData, color) {
     const py = M.t + H * (1 - i / 5);
     const yval = yMin + (yMax - yMin) * i / 5;
     ctx.textAlign = "right";
-    ctx.fillText(yval.toFixed(2) + "%", M.l - 6, py + 4);
+    ctx.fillText(yFmt(yval), M.l - 6, py + 4);
     ctx.beginPath(); ctx.moveTo(M.l, py); ctx.lineTo(M.l + W, py); ctx.stroke();
   }
   for (let i = 0; i <= 6; i++) {
     const px = M.l + W * i / 6;
     const xval = xMin + (xMax - xMin) * i / 6;
     ctx.textAlign = "center";
-    ctx.fillText(xval.toLocaleString("en-US", {maximumFractionDigits: 0}), px, M.t + H + 18);
+    ctx.fillText(xFmt(xval), px, M.t + H + 18);
   }
   ctx.strokeStyle = "#888";
   ctx.beginPath();
@@ -431,6 +445,117 @@ function makeStockFutPanel(container, title, size, xs, leftData, rightData,
   plots.push(u);
 }
 
+// Category: cp_vs_index — Panel 1 time series (cp + 漲跌%) + Panel 2 散佈圖
+const HORIZON_LABEL = {
+  0:  "T 同期 (當天)",
+  1:  "T+1 隔日",
+  5:  "T+5 一週",
+  20: "T+20 一個月",
+};
+
+let CURRENT_HORIZON = 0;
+
+// 3-series time-series panel: cp 當天 細實 + cp 5d 平均 粗實 + 漲跌% 右軸虛線
+// (sync key 共享 → cursor probe 跨 panel; 0 線繪在左+右軸)
+function makeCpTimeSeriesPanel(container, title, size, xs, cpDaily, cp5d, returnArr, horizonLabel, syncKey) {
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  if (title) {
+    const t = document.createElement("div");
+    t.className = "panel-title"; t.textContent = title;
+    panel.appendChild(t);
+  }
+  container.appendChild(panel);
+
+  const opts = {
+    width: size.w, height: size.h,
+    legend: { show: false },
+    cursor: {
+      drag: { x: true, y: false, setScale: true },
+      sync: { key: syncKey, setSeries: true, scales: ["x", null] },
+    },
+    scales: { x: { time: true }, left: { auto: true }, right: { auto: true } },
+    axes: [
+      { values: xAxisVals },
+      { scale: "left", stroke: COLOR.cpNet, size: 80,
+        values: (u, vs) => vs.map(v => v.toLocaleString("en-US", {maximumFractionDigits: 0})) },
+      { side: 1, scale: "right", stroke: COLOR.twiiReturn, size: 60,
+        values: (u, vs) => vs.map(v => v.toFixed(1) + "%"),
+        grid: { show: false } },
+    ],
+    series: [
+      {},
+      { label: "法人CP 當天", scale: "left", stroke: COLOR.cpNet,
+        width: 0.9,                            // 細, 看 noise
+        value: (u, v) => v == null ? "" : v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " 口" },
+      { label: "5日平均 (持續性)", scale: "left", stroke: "#155e75",  // 深 teal, 加粗
+        width: 1.8,                            // 粗, 看趨勢
+        value: (u, v) => v == null ? "" : v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " 口" },
+      { label: `加權 ${horizonLabel} 漲跌%`, scale: "right", stroke: COLOR.twiiReturn,
+        width: 1.2, dash: [6, 3],              // 虛線 right axis 參照
+        value: (u, v) => v == null ? "" : v.toFixed(2) + "%" },
+    ],
+    hooks: {
+      // 左軸 0 線 (cp 多空中性) + 右軸 0 線 (漲跌平) 都畫
+      drawAxes: [(u) => {
+        const ctx = u.ctx;
+        const drawZero = (scale, color) => {
+          const yZero = u.valToPos(0, scale, true);
+          if (yZero >= u.bbox.top && yZero <= u.bbox.top + u.bbox.height) {
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.0;
+            ctx.setLineDash([5, 4]);
+            ctx.beginPath();
+            ctx.moveTo(u.bbox.left, yZero);
+            ctx.lineTo(u.bbox.left + u.bbox.width, yZero);
+            ctx.stroke();
+            ctx.restore();
+          }
+        };
+        drawZero("left",  "#888");
+        drawZero("right", "#bbb");
+      }],
+    },
+  };
+  const u = new uPlot(opts, [xs, cpDaily, cp5d, returnArr], panel);
+  attachWheelZoom(u, DATA.dataMinAll, DATA.dataMaxAll);
+  plots.push(u);
+}
+
+function renderCpVsIndex() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-stacked";
+  area.innerHTML = "";
+  const size = getPanelSize("stacked");
+  const horizon = CURRENT_HORIZON;
+  const returns = DATA.returnsByHorizon[horizon];
+  const label = HORIZON_LABEL[horizon];
+  const syncKey = "cpidx_sync_" + horizon;
+
+  // Panel 1: time series, 3 series (cp 細實 + 5日平均 粗實 + 漲跌% 右軸虛)
+  makeCpTimeSeriesPanel(area,
+    `法人CP合計 (左軸 口) ↔ 加權 ${label} 漲跌% (右軸) — 細線=當天 cp, 粗線=5日平均(看持續性), 虛線=漲跌%, 0 線虛灰 各軸獨立`,
+    size, DATA.xsAll, DATA.cpNet, DATA.cpNet5d, returns, label, syncKey);
+
+  // Panel 2: scatter (X = cp 當天, Y = horizon 漲跌%) + 同步度白話
+  drawScatterPanel(area,
+    `散佈圖: X = 法人CP合計多空 (口) ↔ Y = 加權 ${label} 漲跌% — 看 statistical 連動度`,
+    size, DATA.cpNet, returns, COLOR.cpNet,
+    { xName: "法人CP", yName: `加權${label}漲跌`,
+      yFmt: (v) => v.toFixed(2) + "%",
+      xFmt: (v) => v.toLocaleString("en-US", {maximumFractionDigits: 0}) });
+}
+
+function setHorizon(h) {
+  CURRENT_HORIZON = h;
+  destroyPlots();
+  document.querySelectorAll("#cpHorizonBar .mode-btn").forEach(b =>
+    b.classList.toggle("active", parseInt(b.dataset.horizon) === h));
+  renderLegend("cpidx");
+  requestAnimationFrame(() => renderCpVsIndex());
+}
+
 // Category: stock_fut — 2 dual-axis panel, cursor sync 跨 panel
 function renderStockFut() {
   const area = document.getElementById("chartArea");
@@ -471,6 +596,11 @@ const LEGENDS = {
     ["basis",    "期現價差 (下 panel 左軸, 點)"],
     ["txClose",  "台指期 (兩 panel 右軸, 點)"],
   ],
+  cpidx: [
+    ["cpNet",      "法人CP 當天 (左軸 細線)"],
+    ["cpNet",      "5日平均 (持續性, 深 teal 粗實線)"],
+    ["twiiReturn", "加權漲跌% (右軸 灰虛線)"],
+  ],
 };
 
 function renderLegend(mode) {
@@ -498,15 +628,21 @@ let CURRENT_CATEGORY = "margin";
 function setCategory(cat) {
   CURRENT_CATEGORY = cat;
   const modeBar = document.getElementById("modeBar");
+  const cpHorizonBar = document.getElementById("cpHorizonBar");
   destroyPlots();
+  modeBar.style.display = "none";
+  cpHorizonBar.style.display = "none";
   if (cat === "margin") {
     modeBar.style.display = "flex";
-    const active = document.querySelector(".mode-btn.active");
+    const active = document.querySelector("#modeBar .mode-btn.active");
     setMode(active ? active.dataset.mode : "stacked");
   } else if (cat === "stock_fut") {
-    modeBar.style.display = "none";
     renderLegend("stockfut");
     requestAnimationFrame(() => renderStockFut());
+  } else if (cat === "cp_vs_index") {
+    cpHorizonBar.style.display = "flex";
+    const active = document.querySelector("#cpHorizonBar .mode-btn.active");
+    setHorizon(active ? parseInt(active.dataset.horizon) : 0);
   }
 }
 
@@ -514,8 +650,11 @@ function handleResize() {
   if (CURRENT_CATEGORY === "stock_fut") {
     destroyPlots();
     requestAnimationFrame(() => renderStockFut());
+  } else if (CURRENT_CATEGORY === "cp_vs_index") {
+    destroyPlots();
+    requestAnimationFrame(() => renderCpVsIndex());
   } else {
-    const active = document.querySelector(".mode-btn.active");
+    const active = document.querySelector("#modeBar .mode-btn.active");
     if (active) setMode(active.dataset.mode);
   }
 }
@@ -534,24 +673,68 @@ async function init() {
   const tpexMargin = rows.map(x => x.tpex_margin_pct * 100);
   const twii       = rows.map(x => x.twii_close);
   const otc        = rows.map(x => x.tpex_index_close);
-  // stock_fut category 用 全部 rows (不 filter margin) — 股期/台指期 比 margin
-  // 多覆蓋日期, 直接用 master row list
+  // stock_fut + cp_vs_index 用全部 rows (不 filter margin)
   const allRows  = (r.rows || []).slice();
   const xsAll    = allRows.map(x => Math.floor(new Date(x.date+"T00:00:00").getTime()/1000));
   const stockFut = allRows.map(x => x.stock_fut_legal_net);
   const txClose  = allRows.map(x => x.tx_close);
-  // 期現價差 = 台指期收盤 - 加權指數收盤. 兩者皆 null → null
   const basis    = allRows.map(x =>
     (x.tx_close != null && x.twii_close != null) ? x.tx_close - x.twii_close : null);
+  const cpNet    = allRows.map(x => x.op_cp_net);
+  const twiiArr  = allRows.map(x => x.twii_close);
+
+  // Rolling N-day mean — 平滑線看「持續性偏多/偏空」狀態
+  function rollingMean(arr, win) {
+    const n = arr.length;
+    const out = new Array(n).fill(null);
+    for (let i = win - 1; i < n; i++) {
+      let sum = 0, cnt = 0;
+      for (let j = i - win + 1; j <= i; j++) {
+        if (arr[j] != null) { sum += arr[j]; cnt++; }
+      }
+      if (cnt === win) out[i] = sum / win;
+    }
+    return out;
+  }
+  const cpNet5d = rollingMean(cpNet, 5);
+
+  // T 同期 = (twii[i] / twii[i-1] - 1) * 100  (當天漲跌幅)
+  // T+N    = (twii[i+N] / twii[i] - 1) * 100  (從 T 收盤往後累計 N 日)
+  function futureReturn(twii, horizon) {
+    const n = twii.length;
+    const out = new Array(n).fill(null);
+    if (horizon === 0) {
+      for (let i = 1; i < n; i++) {
+        if (twii[i] == null || twii[i-1] == null) continue;
+        out[i] = (twii[i] / twii[i-1] - 1) * 100;
+      }
+    } else {
+      for (let i = 0; i < n - horizon; i++) {
+        if (twii[i] == null || twii[i + horizon] == null) continue;
+        out[i] = (twii[i + horizon] / twii[i] - 1) * 100;
+      }
+    }
+    return out;
+  }
+  const returnsByHorizon = {
+    0:  futureReturn(twiiArr, 0),
+    1:  futureReturn(twiiArr, 1),
+    5:  futureReturn(twiiArr, 5),
+    20: futureReturn(twiiArr, 20),
+  };
+
   DATA = {
     xs, twseMargin, tpexMargin, twii, otc,
     xsAll, stockFut, txClose, basis,
+    cpNet, cpNet5d, returnsByHorizon,
     dataMin: xs[0], dataMax: xs[xs.length-1],
     dataMinAll: xsAll[0], dataMaxAll: xsAll[xsAll.length-1],
   };
 
-  document.querySelectorAll(".mode-btn").forEach(b =>
+  document.querySelectorAll("#modeBar .mode-btn").forEach(b =>
     b.addEventListener("click", () => setMode(b.dataset.mode)));
+  document.querySelectorAll("#cpHorizonBar .mode-btn").forEach(b =>
+    b.addEventListener("click", () => setHorizon(parseInt(b.dataset.horizon))));
   document.getElementById("categorySelect").addEventListener("change", (e) =>
     setCategory(e.target.value));
   window.addEventListener("resize", () => {

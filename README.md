@@ -143,6 +143,13 @@ stop.bat    # 停掉
       - 兩 panel 共用同一條台指期 reference (灰虛, 弱化避免搶主資料)
       - **probe 同步**: hover 任一 panel 的 cursor 垂直線, 另一 panel 同步顯示
       - **zoom 同步**: wheel zoom / drag 框選 zoom / 雙擊 reset 都跨 panel 同步
+    - `法人CP合計多空 vs 加權指數漲跌幅` (v0.10.52, 4 horizon toggle):
+      - Sub-mode bar: T 同期 / T+1 隔日 / T+5 一週 / T+20 一個月
+      - **Panel 1**: time series, 3 series — cp 當天 細實 (cyan) + cp 5 日平均
+        粗實 (深 teal, 看持續性) + 加權漲跌% 右軸虛線
+      - **Panel 2**: 散佈圖 X=cp Y=horizon 漲跌%, Pearson r 白話 verdict
+      - Statistical 結論 (n=1536): T 同期 r=+0.30 (中度弱同步), T+1/+5/+20 都 ≈ 0
+        → CP 部位「沒有預測力」, 只反映同期狀態
   - 融資 category 下 3 mode toggle (header button bar):
     - **A · 上下雙圖** (default): 上 panel 加權指數+上市%, 下 panel OTC+上櫃% (各自 dual axis)
     - **B · 純融資%**: 兩條 % line dual axis (= v0.10.41 base, 不含指數)
