@@ -1,5 +1,25 @@
 # Changelog
 
+## [v0.10.25] - 2026-05-06 13:52
+
+### MD freshness (用戶提醒): README 補完 v0.10 系列改動
+v0.10.5 ~ v0.10.24 只 update CHANGELOG, README 沒掃, 補上:
+- SQLite Schema 加 `option_settlement_dates` (v0.10.15)
+- `daily_summary` 17 cols 含 `op_pre_open_cp_net` (v0.10.6)
+- 「綜合整理 view 功能」段加: 17-col layout / settlement highlight (淡黃) /
+  色階 (融資佔比上市/上櫃 各自綠→紅) / 窄 viewport 橫向 scroll
+- 「資料完整度」 段更新到 v0.10.21 (1536 dates × 17 cols)
+- 加 「Audit / Sweep 工具表」 (6 個 scripts: audit_and_fix_all,
+  full_audit, detect_outliers, sweep_margin_outliers,
+  full_sweep_all_cols, audit_raw_vs_endpoint)
+- 加 「Outlier-detection 5 方法」 (weekly anchor / TWII MAD-z /
+  day-over-day jumps + margin variants)
+
+## [v0.10.24] - 2026-05-06 13:50
+
+### UI revert: 總市值(兆元) 色階拿掉
+- 用戶 review 後拿掉, 只保留 融資餘額佔市值比 上市/上櫃 色階
+
 ## [v0.10.23] - 2026-05-06 13:50
 
 ### UI: revert 融資餘額(億元) 色階, 改加在總市值(兆元)

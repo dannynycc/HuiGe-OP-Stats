@@ -116,8 +116,9 @@ start.bat / stop.bat
 - `fut_price(date, contract, expiry, open, high, low, close, settle, change, ah_vol, day_vol, total_vol, oi, best_bid, best_ask, PK(date,contract,expiry))`
 - `credit_twse(date, item, buy, sell, repay, prev_balance, today_balance, PK(date,item))`
 - `credit_summary(date, twse_margin_balance, twse_turnover, twse_mkt_cap, tpex_margin_balance, tpex_turnover, tpex_mkt_cap, PK(date))`
-- `daily_summary(date PK, tx_close, op_legal_net, op_call_net, op_put_net, op_cp_net, fut_pre_open_net, stock_fut_legal_net, twse_margin_pct, tpex_margin_pct, twse_margin_amt_oku, tpex_margin_amt_oku, twse_mkt_cap_chao, tpex_mkt_cap_chao, twii_close, mkt_cap_source)` *(twii_close + mkt_cap_source v0.9.7 起)*
+- `daily_summary(date PK, tx_close, op_legal_net, op_call_net, op_put_net, op_cp_net, fut_pre_open_net, stock_fut_legal_net, twse_margin_pct, tpex_margin_pct, twse_margin_amt_oku, tpex_margin_amt_oku, twse_mkt_cap_chao, tpex_mkt_cap_chao, twii_close, mkt_cap_source, op_pre_open_cp_net)` *(17 cols; op_pre_open_cp_net v0.10.6 起)*
 - `mkt_cap_weekly(date PK, twse_mkt_cap_oku, source)` *(v0.9.7 起；TWSE 市值週報 import)*
+- `option_settlement_dates(date, product, contract_month, settlement_price, PK(date,product))` *(v0.10.15 起；TEO 月選結算日)*
 - `refresh_log(id, ts, ok, errors_json)`
 
 ## 啟動
@@ -131,6 +132,14 @@ stop.bat    # 停掉
 - `http://localhost:8765/` — 主表「For X 開盤前看」(柴柴 6 列彙整)
 - `http://localhost:8765/comprehensive` — **綜合整理 view**：完整 timeseries
   table，復刻 Excel「綜合整理」 sheet（v0.9 起）
+
+### 綜合整理 view 功能 (v0.10.x)
+- **17 cols** layout：For 開盤前看 / 前一日 / 加權指數 / 台指期收盤 / 法人淨部位 /
+  開盤前多空 / CALL / PUT / CP合計 / 選擇權開盤前多空 / 股期 / 上市%/上櫃% /
+  上市億/上櫃億 / 上市兆/上櫃兆
+- **電子選擇權月選結算日 highlight**：那 row 整列淡黃 (`#FEF3C7`)，hover 變 amber
+- **色階 (融資餘額佔市值比)**：上市/上櫃 各自獨立綠 → 黃 → 紅 漸層
+- **窄 viewport** (≤1500px) 自動橫向 scroll，每欄 nowrap fit
 
 ## Backfill (歷史資料抓取)
 
@@ -194,12 +203,27 @@ Excel 慣例。已驗證 14 個 cross-holiday absorbing dates 全部 day=30 nigh
 - 損益圖（Excel「損益圖」sheet 的 9 checkbox S1-S3/U1-U6 互斥邏輯）— 用戶決定不做
 - 自動排程 / 定時 refresh — 用戶決定不做
 
-## 資料完整度 (v0.10.4 ALL CLEAN, 1536 dates × 14 cols, 0 NULL)
+## 資料完整度 (v0.10.21 ALL CLEAN, 1536 dates × 17 cols)
 
-每次 backfill 後跑 `scripts/audit_and_fix_all.py`：
-1. NULL audit per column
-2. 自動 fix: derive pct / op_cp_net / mkt_cap interp / TWSE MI_MARGN backfill
-3. 0 NULL → exit 0, 任何 leftover → exit 1 + sample dates 列出
+`daily_summary` 16/17 cols 0 NULL（`op_pre_open_cp_net` 在 2020-2023/04 為 NULL
+是預期，因 TAIFEX 夜盤 endpoint 那段沒料）。
+
+### Audit / Sweep 工具 (v0.10.x 累積)
+| script | 用途 |
+|---|---|
+| `scripts/audit_and_fix_all.py` | NULL audit + auto-fix (derive pct / interp / TWSE MI_MARGN) |
+| `scripts/full_audit.py` | 8-section comprehensive audit (NULL / schema / derived / orphan / continuity / UI alignment / spot-check) |
+| `scripts/detect_outliers.py` | 5-method outlier detection (weekly anchor / TWII MAD-z / day-over-day jumps for both mkt_cap & margin) |
+| `scripts/sweep_margin_outliers.py` | 全段 1535 dates 對 TWSE MI_MARGN endpoint 比對, fix stale |
+| `scripts/full_sweep_all_cols.py` | 全段 endpoint sweep (tx_close / twse_margin / tpex_margin / tpex_mkt_cap) |
+| `scripts/audit_raw_vs_endpoint.py` | Random sample audit, 30 dates × 4 cols sanity-check |
+
+### Outlier-detection 方法 (robust, 不用固定 threshold)
+1. **Weekly anchor exact match** — `mkt_cap_weekly` vs `daily_summary` cell 對 cell
+2. **TWII × ratio MAD-z** — rolling 21-day median absolute deviation, 5σ outlier
+3. **Day-over-day mkt_cap jump** w/ TWII cross-check (mkt_cap > 3% 但 TWII < 3%)
+4. **Margin / mkt_cap ratio MAD-z** — same logic for margin
+5. **Day-over-day margin jump** w/ TWII cross-check (排除真實 market crash)
 
 ### Caveat: fut_pre_open_net 對 2020-2023/04 段
 - 公式: `fut_pre_open_net = 日盤 OI net (大台等效) + 夜盤 net_lots`
