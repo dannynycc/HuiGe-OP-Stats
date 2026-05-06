@@ -1,5 +1,31 @@
 # Changelog
 
+## [v0.10.8] - 2026-05-06 10:30
+
+### Fixed (用戶: title wrap 成 2 行 = 醜)
+
+#### 我 v0.10.7 verify 邏輯錯了
+- v0.10.7 量 `scrollW <= offsetW` 對 nowrap 有用，對 `white-space: normal` wrap 沒用
+  (wrap 後 scrollW = offsetW = 沒 overflow, 但視覺上 2 line 還是醜)
+- 用戶截圖 1900 viewport「前一日日盤Da」+「ta」確實 wrap 我沒抓到
+
+#### Real fix
+- thead 改回 `white-space: nowrap` (不允許 wrap)
+- 縮短 R2 title (R1 group 已暗示 product, 砍「法人」prefix):
+  - 「For 開盤前看」 → 「開盤前看」
+  - 「前一日日盤Data」 → 「前一日日盤」
+  - 「台指期」 → 「日盤收盤」 (clarify)
+  - 「法人淨部位」 → 「淨部位」 (×2)
+  - 「法人買權CALL」 → 「買權 CALL」
+  - 「法人賣權PUT」 → 「賣權 PUT」
+  - 「法人CP合計多空」 → 「CP合計多空」
+  - 「上市(億元)」 → 「上市億元」 (砍括號)
+- R2 font-size 14px → 12px (R1 group 維持 14px)
+
+#### Improved verifier
+- `verify_sticky.py` 加 line-count check (`offsetHeight > 30`)
+- Tested 6 viewports (1280/1366/1500/1600/1900/2200) ALL PASS, 0 overflow
+
 ## [v0.10.7] - 2026-05-06 08:00
 
 ### Fixed (用戶: title 有些會超框)

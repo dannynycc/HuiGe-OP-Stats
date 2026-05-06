@@ -89,11 +89,13 @@
     border-bottom: 1px solid #888;
     position: sticky;
     z-index: 3;
-    /* 允許 title 折行 (數字 cell 在 td 仍是 nowrap) */
-    white-space: normal;
-    line-height: 1.2;
-    word-break: keep-all;       /* 中文不要斷字, 在空格處或邊界 break */
-    overflow-wrap: break-word;
+    /* 不允許 wrap — wrap 看起來醜, 改用縮短 title + 較小 font */
+    white-space: nowrap;
+  }
+  /* R2 column titles 字體較小 (R1 group 字體 14px, R2 12px) */
+  table.zonghe thead tr:nth-child(2) th {
+    font-size: 12px;
+    padding: 4px 3px;
   }
   table.zonghe thead tr:nth-child(1) th { top: 0; z-index: 4; }
   table.zonghe thead tr:nth-child(2) th {
@@ -120,13 +122,13 @@
   <table class="zonghe" id="zonghe">
     <colgroup>
       <col style="width:5%">    <!-- A: For 開盤前看 -->
-      <col style="width:6%">    <!-- B: 前一日日盤Data -->
+      <col style="width:7%">    <!-- B: 前一日日盤Data — 最寬, 字串混中英 -->
       <col style="width:5%">    <!-- C: 加權指數 -->
       <col style="width:5%">    <!-- D: 台指期 日盤收盤 -->
       <col style="width:6%">    <!-- E: 台指期 法人淨部位 -->
       <col style="width:6%">    <!-- F: 台指期 開盤前多空 -->
-      <col style="width:7%">    <!-- G: 法人買權CALL — 較長 -->
-      <col style="width:7%">    <!-- H: 法人賣權PUT -->
+      <col style="width:6%">    <!-- G: 法人買權CALL -->
+      <col style="width:6%">    <!-- H: 法人賣權PUT -->
       <col style="width:7%">    <!-- I: 法人CP合計多空 — 最長 -->
       <col style="width:6%">    <!-- J: 選擇權 開盤前多空 -->
       <col style="width:6%">    <!-- K: 股票期貨 法人淨部位 -->
@@ -154,25 +156,27 @@
         <th colspan="2">融資餘額</th>
         <th colspan="2">總市值</th>
       </tr>
-      <!-- R2: column header (17 cells, full row) -->
+      <!-- R2: column header (17 cells, full row).
+           Titles 縮短 + 12px 字體 fit 在 1366px viewport without wrap.
+           「法人」 prefix 在 R1 group 已暗示 (台指期/選擇權未平倉/股票期貨), 砍掉 -->
       <tr>
-        <th>For 開盤前看</th>
-        <th>前一日日盤Data</th>
+        <th>開盤前看</th>
+        <th>前一日日盤</th>
         <th>加權指數</th>
-        <th>台指期</th>
-        <th>法人淨部位</th>
+        <th>日盤收盤</th>
+        <th>淨部位</th>
         <th>開盤前多空</th>
-        <th>法人買權CALL</th>
-        <th>法人賣權PUT</th>
-        <th>法人CP合計多空</th>
+        <th>買權 CALL</th>
+        <th>賣權 PUT</th>
+        <th>CP合計多空</th>
         <th>開盤前多空</th>
-        <th>法人淨部位</th>
+        <th>淨部位</th>
         <th>上市</th>
         <th>上櫃</th>
-        <th>上市(億元)</th>
-        <th>上櫃(億元)</th>
-        <th>上市(兆元)</th>
-        <th>上櫃(兆元)</th>
+        <th>上市億元</th>
+        <th>上櫃億元</th>
+        <th>上市兆元</th>
+        <th>上櫃兆元</th>
       </tr>
     </thead>
     <tbody id="zhBody">

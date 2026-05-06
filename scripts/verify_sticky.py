@@ -45,6 +45,28 @@ def main():
         gap = info["r2Top"] - (info["r1Top"] + info["r1Height"])
         print(f"gap r1->r2: {gap:.2f}px (should be 0)")
         print(f"r1 stuck to wrap top: {abs(info['r1Top'] - info['wrapTop']) < 1}")
+
+        # NEW: detect any header cell that wrapped to multiple lines (visually
+        # broken even if scrollW <= offsetW because wrap absorbs overflow).
+        # A line is ~14px font * 1.2 line-height = 16-20px. >24px = >=2 lines.
+        page.goto("http://127.0.0.1:8765/comprehensive", wait_until="networkidle", timeout=15000)
+        page.wait_for_selector("table.zonghe thead tr:nth-child(2) th", timeout=10000)
+        wraps = page.evaluate("""() => {
+            const ths = document.querySelectorAll('table.zonghe thead tr:nth-child(2) th');
+            return Array.from(ths).map(t => ({
+                txt: t.innerText.trim(),
+                w: t.offsetWidth,
+                h: t.offsetHeight,
+                wrapped: t.offsetHeight > 30,  // >30px implies 2+ lines
+            }));
+        }""")
+        wrapped = [c for c in wraps if c["wrapped"]]
+        if wrapped:
+            print(f"\nXX {len(wrapped)} headers wrapped to 2+ lines (= ugly/broken):")
+            for c in wrapped:
+                print(f"  '{c['txt']}'  w={c['w']}px h={c['h']}px")
+        else:
+            print(f"\nOK all {len(wraps)} R2 headers fit in single line")
         browser.close()
 
 if __name__ == "__main__":
