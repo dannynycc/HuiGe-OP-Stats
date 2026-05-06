@@ -410,16 +410,19 @@ function formatRefreshStatus(r) {
 // Refresh button — same logic as 主表's doRefresh
 async function doRefresh() {
   const btn = document.getElementById("btnRefresh");
-  const stat = document.getElementById("status");
+  const info = document.getElementById("refreshInfo");
   btn.disabled = true;
-  stat.innerHTML = '<span class="spinner"></span>抓取資料中…';
+  // Spinner 取代 「資料日期 X · 上次 refresh Y」 顯示
+  const savedInfo = info.textContent;
+  info.innerHTML = '<span class="spinner"></span>抓取資料中…';
   try {
-    const r = await fetch("/api/refresh", { method: "POST" }).then(r => r.json());
-    stat.textContent = formatRefreshStatus(r);
-    // Reload comprehensive table after refresh — single source of truth (DB) updated
+    await fetch("/api/refresh", { method: "POST" }).then(r => r.json());
+    // 重 load 自動把 info 從 API payload 設為新 timestamp
     await load();
   } catch (e) {
-    stat.textContent = `失敗: ${e.message}`;
+    info.textContent = `失敗: ${e.message}`;
+    // restore previous info after 3 sec
+    setTimeout(() => { info.textContent = savedInfo; }, 3000);
   } finally {
     btn.disabled = false;
   }

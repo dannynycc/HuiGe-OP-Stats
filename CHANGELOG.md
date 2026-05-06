@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.10.40] - 2026-05-06 17:30
+
+### Fixed (用戶: 綜合整理 spinner 應取代資料日期 info)
+- 之前: refresh 時 spinner 顯示在右側 status, info 維持原樣
+- 現在: spinner 取代 「資料日期 X · 上次 refresh Y ✓」 info 顯示
+- 跑完 load() 自動 fetch 新 timestamp 替回 info
+
+### Verified Playwright
+- BEFORE: `資料日期 2026-05-06 · 上次 refresh 2026-05-06 16:31:10 ✓`
+- DURING: `🔵 抓取資料中…` (spinner 取代)
+- AFTER: 新 timestamp 自動寫回
+
 ## [v0.10.39] - 2026-05-06 17:20
 
 ### Fixed (用戶: 不要鉅細靡遺說 + spinner 主表沒看到)
