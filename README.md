@@ -129,6 +129,9 @@ stop.bat    # 停掉
 ```
 
 > 完整 server 啟動 / 停止 / debug / 排查教學見 [docs/SERVER.md](docs/SERVER.md)
+>
+> 法人 CP + 大台 OI 淨 對加權指數預測力 deep statistical 研究見
+> [docs/RESEARCH_cp_fut.md](docs/RESEARCH_cp_fut.md) (v0.10.53)
 
 瀏覽器：
 - `http://localhost:8765/` — 主表「For X 開盤前看」(柴柴 6 列彙整)

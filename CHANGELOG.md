@@ -1,5 +1,33 @@
 # Changelog
 
+## [v0.10.53] - 2026-05-07 07:58
+
+### Added: deep statistical research — `docs/RESEARCH_cp_fut.md`
+
+#### 用戶 ask
+- 「自己 deep study, 不只放圖」
+- 「法人 CP 多空 + 台指期法人淨部位 一起看」
+- 「兩個都極端負 / 一大一小 → forward return 怎樣」
+
+#### 6 年 1537 dates conditional analysis
+- 5 個 condition group (BOTH_NEG / BOTH_POS / DIVERGE_CP_NEG / DIVERGE_CP_POS / NEUTRAL)
+- 4 個 horizon (T+1 / T+5 / T+10 / T+20)
+- 用 z-score 定義「極端」 (|z|>1.5 ≈ top/bottom 7%)
+- 加 rolling 5d 平均 (持續性) + 量級不對稱 analysis
+
+#### 真正挖到的 finding (跟用戶直覺相反)
+1. **「兩者都極端負 → 下跌」 樣本太少** (n=4 in 6年) 不能驗證
+2. **法人意見分歧 (DIVERGE) 才是強信號**:
+   - cp 空 + fut 多 (n=18): T+5 **−4.15%** (vs baseline +0.44%, |t|>2 ⬇⬇)
+   - cp 多 + fut 空 (n=16): T+20 **−3.06%** (vs +1.71%, |t|>2 ⬇⬇)
+3. **反直覺: fut 5d 持續極端負 → 後續反彈** (n=51, T+10 +2.31% ⬆) — contrarian indicator
+4. **fut 看多較強 → 顯著漲** (n=162, T+20 +3.01% ⬆) — momentum confirm
+5. **正常時期報酬比 baseline 低** — 信號集中在極端期, 中性期沒 alpha
+
+#### Files added
+- `scripts/research_cp_fut_vs_index.py` — 重複跑 reproduce
+- `docs/RESEARCH_cp_fut.md` — 完整 6 section markdown 報告
+
 ## [v0.10.52] - 2026-05-07 07:50
 
 ### Added: 第三 chart category — 法人CP合計多空 vs 加權指數漲跌幅
