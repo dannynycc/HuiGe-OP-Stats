@@ -101,6 +101,48 @@ def main():
             issues.append(("dod_jump", rows[i]["date"], None, cur_mc))
     print(f"jump anomalies: {bigj}")
 
+    # 4. Margin vs mkt_cap ratio MAD-z (margin/mkt_cap should also be smooth)
+    print()
+    print("=" * 60)
+    print("4. Margin/mkt_cap ratio MAD-z (rolling 21-day)")
+    print("=" * 60)
+    rows4 = list(con.execute("""
+        SELECT date, twse_margin_amt_oku, twse_mkt_cap_chao
+        FROM daily_summary
+        WHERE twse_margin_amt_oku IS NOT NULL AND twse_mkt_cap_chao IS NOT NULL
+        ORDER BY date
+    """))
+    margin_ratios = [r["twse_margin_amt_oku"] / (r["twse_mkt_cap_chao"] * 10000.0) for r in rows4]
+    margin_outliers = 0
+    for i in range(window, len(rows4) - window):
+        local = margin_ratios[i - window:i + window + 1]
+        med = statistics.median(local)
+        mad = statistics.median([abs(x - med) for x in local])
+        if mad == 0:
+            continue
+        z = abs(margin_ratios[i] - med) / (1.4826 * mad)
+        if z > 5:
+            d = rows4[i]["date"]
+            print(f"  XX {d}: margin/mkt_cap={margin_ratios[i]*100:.4f}% (rolling med={med*100:.4f}% z={z:.1f})  margin={rows4[i]['twse_margin_amt_oku']:.2f}億  mkt_cap={rows4[i]['twse_mkt_cap_chao']:.4f}兆")
+            margin_outliers += 1
+            issues.append(("margin_ratio", d, med * rows4[i]["twse_mkt_cap_chao"] * 10000, rows4[i]["twse_margin_amt_oku"]))
+    print(f"margin outliers: {margin_outliers}")
+
+    # 5. Day-over-day margin jump > 5% (no fundamental reason)
+    print()
+    print("=" * 60)
+    print("5. Day-over-day margin jump > 5%")
+    print("=" * 60)
+    margin_jumps = 0
+    for i in range(1, len(rows4)):
+        prev = rows4[i - 1]["twse_margin_amt_oku"]
+        cur = rows4[i]["twse_margin_amt_oku"]
+        if prev and cur and abs(cur - prev) / prev > 0.05:
+            print(f"  XX {rows4[i]['date']}: margin {prev:.2f}→{cur:.2f}億  {(cur-prev)/prev*100:+.1f}%")
+            margin_jumps += 1
+            issues.append(("margin_jump", rows4[i]["date"], prev, cur))
+    print(f"margin jumps: {margin_jumps}")
+
     print()
     print("=" * 60)
     print(f"TOTAL ISSUES: {len(issues)}")

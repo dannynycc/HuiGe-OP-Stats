@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Any
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .db import connect, init_db
@@ -102,8 +102,11 @@ def api_timeseries() -> dict[str, Any]:
 
 
 @app.get("/api/comprehensive")
-def api_comprehensive() -> dict[str, Any]:
+def api_comprehensive(response: Response) -> dict[str, Any]:
     """綜合整理 view — daily_summary 全部 rows + 每天對應的 view_date (= next trading day)."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     import datetime as _dt
     with connect() as con:
         # day-session dates (= real trading days), used to derive next-trading-day
