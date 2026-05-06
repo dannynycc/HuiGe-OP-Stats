@@ -131,12 +131,18 @@ def fetch_turnover(date_dash: str) -> dict[str, Any]:
 
 
 def fetch_mkt_cap(target_date_dash: str | None = None) -> dict[str, Any]:
-    """homeApi/mkt_cap — 上市總市值. NB: this endpoint only ships the most recent
-    ~5 trading days; older dates are unrecoverable from this URL.
-    If target_date_dash given (YYYY-MM-DD) and matches an entry's MM/DD, return that one;
-    otherwise return the last (latest) entry. The full array is included so a caller
-    can verify whether the requested date was actually present.
+    """homeApi/mkt_cap — 上市總市值.
+
+    NB: this endpoint only ships the most recent ~5 trading days as
+    [['MM/DD', mkt_cap_oku], ...] — **WITHOUT year**. So if target_date is
+    historical (e.g. 2023-05-05) but its MM/DD happens to match an entry's
+    MM/DD (= a recent 2026 date), naive matching would write today's
+    mkt_cap to a historical row → BUG.
+
+    Guard: only honor MM/DD match if target_date is within the last 7 days.
+    Otherwise reject (caller falls back to interp via _post_refresh_aggregate).
     """
+    import datetime as _dt
     url = "https://www.twse.com.tw/rwd/zh/homeApi/mkt_cap"
     r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT, verify=VERIFY)
     r.raise_for_status()
@@ -144,17 +150,36 @@ def fetch_mkt_cap(target_date_dash: str | None = None) -> dict[str, Any]:
     if not arr:
         return {"actual_md": None, "mkt_cap_oku": None, "available": []}
     target_md = None
+    target_date = None
     if target_date_dash:
-        parts = target_date_dash.split("-")
-        if len(parts) == 3:
-            target_md = f"{parts[1]}/{parts[2]}"
+        try:
+            target_date = _dt.date.fromisoformat(target_date_dash)
+            target_md = f"{target_date.month:02d}/{target_date.day:02d}"
+        except ValueError:
+            pass
+
+    # Only honor match if target_date is within recent 7 days (= endpoint window)
+    today = _dt.date.today()
+    in_window = (
+        target_date is not None and (today - target_date).days <= 7
+        and (today - target_date).days >= -1
+    )
     chosen = None
-    if target_md:
+    if target_md and in_window:
         for entry in arr:
             if entry[0] == target_md:
                 chosen = entry
                 break
-    chosen = chosen or arr[-1]
+    if chosen is None:
+        # Either no target, or target is historical (older than 7 days):
+        # caller should NOT use this; we still return latest entry for info.
+        chosen = arr[-1]
+        return {
+            "actual_md": None if target_date_dash and not in_window else chosen[0],
+            "mkt_cap_oku": None if target_date_dash and not in_window else _to_float(chosen[1]),
+            "available": [a[0] for a in arr],
+            "note": "out-of-window" if target_date_dash and not in_window else None,
+        }
     return {
         "actual_md": chosen[0],
         "mkt_cap_oku": _to_float(chosen[1]),

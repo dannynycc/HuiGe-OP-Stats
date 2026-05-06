@@ -1,5 +1,45 @@
 # Changelog
 
+## [v0.10.12] - 2026-05-06 11:50
+
+### 用戶要求 full audit 找漏的 bug — 找到 1 個
+
+#### Bug: fetch_mkt_cap 對 historical 同月日 寫 stale today value
+- TWSE `homeApi/mkt_cap` endpoint return `[['MM/DD', mkt_cap_oku], ...]`
+  最近 5 trading days, **沒 year**
+- `fetch_mkt_cap(target_date_dash)` 對歷史 date 比 MM/DD, 同月日 (5/5/4-29/4-30)
+  match 到 today (2026) 的 entry → 寫 today's mkt_cap 到 historical row
+- 這影響 3 個 dates 的 `credit_summary.twse_mkt_cap`:
+  - 2023-05-05: 寫 1,329,411 億 (= 2026-05-05 值, 正確 ~493,000 億)
+  - 2024-04-29: 寫 1,281,726 億 (= 2026-04-29 值)
+  - 2024-04-30: 寫 1,269,524 億 (= 2026-04-30 值)
+- 連帶 `recompute_daily_summary.py` 用 stale mkt_cap 算 `twse_margin_pct`,
+  3 個 dates pct 算錯一半左右
+
+#### Fix
+- `app/scrapers/twse.py:fetch_mkt_cap`: 加 7-day window guard
+  - target_date 在 today-7 ~ today+1 才 honor MM/DD match
+  - 否則 return `actual_md=None mkt_cap_oku=None note="out-of-window"`
+  - 原意: endpoint 限制 5-day window, 對歷史本來就應該 reject
+- 立刻 wipe 3 個 stale `credit_summary.twse_mkt_cap` 寫 NULL
+- 重算 3 dates 的 `daily_summary.twse_margin_pct` 從 cols (margin/mkt_cap)
+  - 2023-05-05: 0.13% → 0.36% ✓
+  - 2024-04-29: 0.22% → 0.43% ✓
+  - 2024-04-30: 0.22% → 0.44% ✓
+
+### Audit script 留下: `scripts/full_audit.py`
+8 sections:
+1. NULL count per col
+2. Schema consistency
+3. Derived field sanity (op_cp_net = call - put, pct = margin / mkt_cap)
+4. Orphan detection (daily_summary <-> op_legal)
+5. Trading days continuity (gap > 4 days = holiday cluster)
+6. UI <-> backend column alignment (R2 cells == colgroup == JS td count)
+7. Idempotency / spot-check 5 random dates
+8. Final verdict (exit 1 if any issue)
+
+ALL CLEAN after this fix.
+
 ## [v0.10.11] - 2026-05-06 11:30
 
 ### Audit (用戶: refresh 後綜合整理表所有 data 都要最新)
