@@ -326,11 +326,6 @@ async function load() {
   const tpexPcts = rows.map(r => r.tpex_margin_pct).filter(v => v != null);
   const twseMin = Math.min(...twsePcts), twseMax = Math.max(...twsePcts);
   const tpexMin = Math.min(...tpexPcts), tpexMax = Math.max(...tpexPcts);
-  // 總市值 (兆元) — 上市/上櫃 各自獨立色階
-  const twseCaps = rows.map(r => r.twse_mkt_cap_chao).filter(v => v != null);
-  const tpexCaps = rows.map(r => r.tpex_mkt_cap_chao).filter(v => v != null);
-  const twseCapMin = Math.min(...twseCaps), twseCapMax = Math.max(...twseCaps);
-  const tpexCapMin = Math.min(...tpexCaps), tpexCapMax = Math.max(...tpexCaps);
   const html = rows.map(r => `
     <tr${r.is_settlement ? ' class="settlement"' : ''}>
       <td style="text-align:left">${fmtMD(r.view_date)}</td>
@@ -348,8 +343,8 @@ async function load() {
       ${tdPctScale(r.tpex_margin_pct, tpexMin, tpexMax)}
       ${tdAcct(r.twse_margin_amt_oku)}
       ${tdAcct(r.tpex_margin_amt_oku)}
-      ${tdParen2Scale(r.twse_mkt_cap_chao, twseCapMin, twseCapMax)}
-      ${tdParen2Scale(r.tpex_mkt_cap_chao, tpexCapMin, tpexCapMax)}
+      ${tdParen2(r.twse_mkt_cap_chao)}
+      ${tdParen2(r.tpex_mkt_cap_chao)}
     </tr>
   `).join("");
   document.getElementById("zhBody").innerHTML = html;
