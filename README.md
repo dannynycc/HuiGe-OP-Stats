@@ -133,6 +133,18 @@ stop.bat    # 停掉
 - `http://localhost:8765/comprehensive` — **綜合整理 view**：完整 timeseries
   table，復刻 Excel「綜合整理」 sheet（v0.9 起）
 
+### Refresh 行為 (v0.10.27 起 catch-up mode)
+- `POST /api/refresh` 預設 `catch_up=true`: 自動補 last_db_date+1 ~ today 所有 weekdays
+- `?date=YYYY-MM-DD` 指定單日 (override catch_up)
+- `?catch_up=false` 關掉只抓今天
+- 三層正確性防護:
+  1. Endpoint `actual_date == target` 防 stale (year-bug guard)
+  2. Row count sanity: op=30 / fut=73 才算完整
+  3. Conflict detection: snapshot DB before refresh, 比對 9 cols diff > 0.5% 列出
+- 跑完 outlier audit on 補的 dates (day-over-day mkt_cap / margin vs TWII)
+- 兩 view (主表 / 綜合整理) 都 query `daily_summary`, refresh 後 Ctrl+F5 自動同步
+- API responses 加 `Cache-Control: no-cache` 強制 browser fresh fetch
+
 ### 綜合整理 view 功能 (v0.10.x)
 - **17 cols** layout：For 開盤前看 / 前一日 / 加權指數 / 台指期收盤 / 法人淨部位 /
   開盤前多空 / CALL / PUT / CP合計 / 選擇權開盤前多空 / 股期 / 上市%/上櫃% /

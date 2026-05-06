@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import logging
+import sqlite3
 import time
 import requests
 import urllib3
@@ -168,6 +169,168 @@ def latest_likely_trading_date(today: date | None = None) -> str:
     while d.weekday() >= 5:  # Sat=5, Sun=6
         d -= timedelta(days=1)
     return d.isoformat()
+
+
+def catch_up_refresh(today: date | None = None) -> dict[str, Any]:
+    """Catch-up mode: refresh all weekdays from (last_db_date + 1) to today.
+
+    For users who haven't refreshed for several days. Auto-detects gaps
+    and fills each one. Holidays naturally skip (endpoint returns no rows
+    → daily_summary not written via the all-NULL guard).
+
+    Per-day sanity check: row counts must match expected after refresh.
+    Reports any day where data looks incomplete.
+    """
+    init_db()
+    today = today or date.today()
+    if today.weekday() >= 5:
+        # Today is weekend — use last weekday
+        while today.weekday() >= 5:
+            today -= timedelta(days=1)
+
+    # Find last date in DB
+    with connect() as con:
+        row = con.execute(
+            "SELECT MAX(date) FROM op_legal WHERE daynight='day'"
+        ).fetchone()
+    last_db = row[0] if row and row[0] else None
+    if not last_db:
+        # Empty DB — just refresh today
+        return {"mode": "single", "results": [refresh()]}
+
+    last_d = date.fromisoformat(last_db)
+    target_dates: list[str] = []
+    cursor = last_d + timedelta(days=1)
+    while cursor <= today:
+        if cursor.weekday() < 5:  # weekday only (Mon-Fri)
+            target_dates.append(cursor.isoformat())
+        cursor += timedelta(days=1)
+
+    if not target_dates:
+        return {"mode": "no_op", "last_db": last_db, "today": today.isoformat(),
+                "message": "DB already up-to-date"}
+
+    log.info("catch-up: %d weekdays from %s to %s",
+             len(target_dates), target_dates[0], target_dates[-1])
+
+    SNAPSHOT_COLS = ("tx_close", "twii_close", "twse_margin_amt_oku",
+                     "tpex_margin_amt_oku", "twse_mkt_cap_chao",
+                     "tpex_mkt_cap_chao", "op_call_net", "op_put_net",
+                     "stock_fut_legal_net")
+
+    results = []
+    for d in target_dates:
+        # Snapshot before — so we can detect endpoint vs DB conflict
+        with connect() as con:
+            con.row_factory = sqlite3.Row
+            before_row = con.execute(
+                f"SELECT {', '.join(SNAPSHOT_COLS)} FROM daily_summary WHERE date=?",
+                (d,)
+            ).fetchone()
+            con.row_factory = None
+        before = dict(before_row) if before_row else {}
+
+        out = refresh(d)
+
+        # Sanity: row counts
+        with connect() as con:
+            con.row_factory = sqlite3.Row
+            op_n = con.execute(
+                "SELECT COUNT(*) FROM op_legal WHERE date=? AND daynight='day'", (d,)
+            ).fetchone()[0]
+            fut_n = con.execute(
+                "SELECT COUNT(*) FROM fut_legal WHERE date=? AND daynight='day'", (d,)
+            ).fetchone()[0]
+            after_row = con.execute(
+                f"SELECT {', '.join(SNAPSHOT_COLS)} FROM daily_summary WHERE date=?",
+                (d,)
+            ).fetchone()
+            con.row_factory = None
+        after = dict(after_row) if after_row else {}
+
+        # Conflict detection: compare before vs after for each col
+        conflicts = []
+        for col in SNAPSHOT_COLS:
+            v_before = before.get(col)
+            v_after = after.get(col)
+            if v_before is None or v_after is None:
+                continue
+            if isinstance(v_before, (int, float)) and isinstance(v_after, (int, float)):
+                # Tolerance: 0.5% relative diff
+                if v_before == 0:
+                    if abs(v_after) > 0.5:
+                        conflicts.append({"col": col, "old": v_before, "new": v_after})
+                elif abs(v_after - v_before) / abs(v_before) > 0.005:
+                    conflicts.append({"col": col, "old": v_before, "new": v_after})
+
+        if op_n == 0 and fut_n == 0:
+            out["status"] = "skipped (holiday or pre-release)"
+        elif op_n < 30 or fut_n < 73:
+            # Standard counts: op_legal day=30 / fut_legal day=73 (verified across recent dates)
+            # Less = endpoint partial release (still trading) or holiday-cluster anomaly
+            out["status"] = f"INCOMPLETE (op={op_n}/30, fut={fut_n}/73) — partial release, retry later"
+        else:
+            out["status"] = f"ok (op={op_n} fut={fut_n})"
+        out["target_date"] = d
+        out["conflicts"] = conflicts  # always populated
+        results.append(out)
+
+    # Run outlier detection on the freshly-touched dates
+    suspicious = []
+    if target_dates:
+        suspicious = _audit_recent_dates(target_dates)
+
+    return {
+        "mode": "catch_up",
+        "last_db": last_db,
+        "today": today.isoformat(),
+        "weekdays_checked": len(target_dates),
+        "results": results,
+        "outlier_audit": suspicious,
+    }
+
+
+def _audit_recent_dates(dates: list[str]) -> list[dict]:
+    """Run outlier detection on a list of dates. Returns list of suspicious cells.
+
+    Checks:
+    - mkt_cap day-over-day (vs TWII)
+    - margin day-over-day (vs TWII)
+    """
+    if not dates:
+        return []
+    issues = []
+    with connect() as con:
+        for d in dates:
+            r = con.execute(
+                """SELECT date, twii_close, twse_mkt_cap_chao, twse_margin_amt_oku,
+                       (SELECT twii_close FROM daily_summary WHERE date < ? ORDER BY date DESC LIMIT 1) AS prev_twii,
+                       (SELECT twse_mkt_cap_chao FROM daily_summary WHERE date < ? ORDER BY date DESC LIMIT 1) AS prev_mc,
+                       (SELECT twse_margin_amt_oku FROM daily_summary WHERE date < ? ORDER BY date DESC LIMIT 1) AS prev_margin
+                   FROM daily_summary WHERE date=?""",
+                (d, d, d, d)
+            ).fetchone()
+            if not r:
+                continue
+            cur_twii, cur_mc, cur_margin = r[1], r[2], r[3]
+            prev_twii, prev_mc, prev_margin = r[4], r[5], r[6]
+            # mkt_cap > 3% jump but TWII < 3% = suspicious
+            if cur_mc and prev_mc and prev_twii and cur_twii:
+                mc_pct = abs(cur_mc - prev_mc) / prev_mc
+                tw_pct = abs(cur_twii - prev_twii) / prev_twii
+                if mc_pct > 0.03 and abs(mc_pct - tw_pct) > 0.03:
+                    issues.append({"date": d, "type": "mkt_cap_jump",
+                                   "prev": prev_mc, "cur": cur_mc,
+                                   "twii_change_pct": tw_pct * 100})
+            # margin > 5% jump but TWII < 3% = suspicious
+            if cur_margin and prev_margin and prev_twii and cur_twii:
+                mg_pct = abs(cur_margin - prev_margin) / prev_margin
+                tw_pct = abs(cur_twii - prev_twii) / prev_twii
+                if mg_pct > 0.05 and tw_pct < 0.03:
+                    issues.append({"date": d, "type": "margin_jump",
+                                   "prev": prev_margin, "cur": cur_margin,
+                                   "twii_change_pct": tw_pct * 100})
+    return issues
 
 
 def refresh(target_date: str | None = None) -> dict[str, Any]:

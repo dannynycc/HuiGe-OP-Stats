@@ -28,9 +28,20 @@ def index() -> FileResponse:
 
 
 @app.post("/api/refresh")
-def api_refresh(date: str | None = None) -> dict[str, Any]:
-    """Trigger a refresh. date='YYYY-MM-DD' optional, defaults to latest weekday."""
-    return refresh(date)
+def api_refresh(date: str | None = None,
+                catch_up: bool = True) -> dict[str, Any]:
+    """Trigger a refresh.
+
+    date='YYYY-MM-DD' optional → single-day refresh for that date.
+    Otherwise (catch_up=True default): refresh all weekdays from
+    (last_db_date + 1) to today. Holiday days naturally skip.
+    """
+    if date:
+        return refresh(date)
+    if catch_up:
+        from .refresh import catch_up_refresh
+        return catch_up_refresh()
+    return refresh()
 
 
 @app.get("/api/today")
@@ -153,8 +164,12 @@ def comprehensive_page() -> FileResponse:
 
 
 @app.get("/api/dashboard")
-def api_dashboard(view_date: str | None = Query(default=None),
+def api_dashboard(response: Response,
+                  view_date: str | None = Query(default=None),
                   date: str | None = Query(default=None)) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     """The 6-row 柴柴 法人部位彙整 view.
 
     Accepts either:

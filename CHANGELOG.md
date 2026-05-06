@@ -1,5 +1,39 @@
 # Changelog
 
+## [v0.10.27] - 2026-05-06 14:20
+
+### Added: Refresh catch-up mode + 多層正確性防護
+
+**用戶問**: 幾天沒按 refresh, 補完整 DB? 怎確保 fetch 正確? DB vs endpoint 不一致怎 handle? 兩 view 同步?
+
+#### 1. Catch-up: `refresh.catch_up_refresh()`
+- 找 DB MAX(date) → 補 last_db+1 ~ today 每個 weekday
+- API: `POST /api/refresh` 預設 `catch_up=true`
+  - `?date=YYYY` 指定單日 / `?catch_up=false` 關閉
+
+#### 2. 三層正確性防護 (per day)
+- **Endpoint actual_date 必須 match target** (防 stale fall-back, fetch_credit /
+  fetch_mkt_cap 已 implement year-bug guard)
+- **Row count sanity**: op=30/30 + fut=73/73 ✓ / partial → INCOMPLETE 警告
+- **Conflict detection**: snapshot DB before refresh, fetch 後比對 9 cols
+  diff > 0.5% 列入 `conflicts`
+
+#### 3. 跑完 outlier audit
+- 對補的 dates 跑 day-over-day check:
+  - mkt_cap > 3% but TWII < 3% → suspicious
+  - margin > 5% but TWII < 3% → suspicious
+- 結果 in response `outlier_audit`
+
+#### 4. 兩 view 自動同步
+- DB single source of truth: `refresh()` 寫 `daily_summary`, 兩 view query 同 table
+- 兩 view 都加 `Cache-Control: no-cache, no-store, must-revalidate`
+- Ctrl+F5 強制 browser fetch fresh
+
+### Test verified
+- 模擬 today=2026-05-08 (last_db=2026-05-05): 自動 check 5/6/7/8
+- 5/6 today=ok (op=30 fut=70) → 報 INCOMPLETE 因今天還沒 14:30 收盤
+- 5/7 / 5/8 future = skipped (endpoint 0 rows)
+
 ## [v0.10.26] - 2026-05-06 14:00
 
 ### UI: 主表 max-width 1300px → 1050px (用戶: 欄寬太寬, 留太多空白)
