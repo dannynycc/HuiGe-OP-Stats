@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>融資餘額佔市值比 走勢圖</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
+<style>
+  :root { --bg: #ffffff; --fg: #000000; --muted: #6b7280; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 10px 16px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; }
+  header span.muted { color: var(--muted); font-size: 13px; }
+  .nav-btn {
+    display: inline-block;
+    background: #fff; color: #2c5aa0;
+    border: 2px solid #2c5aa0;
+    padding: 5px 14px; border-radius: 4px;
+    text-decoration: none; font-weight: 600; font-size: 13px;
+    margin-left: auto;
+  }
+  .nav-btn:hover { background: #2c5aa0; color: #fff; }
+
+  /* Chart container — full viewport width, mostly height */
+  #chartArea {
+    flex: 1;
+    padding: 16px;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .legend {
+    display: flex;
+    gap: 24px;
+    padding: 8px 16px;
+    border-bottom: 1px solid #eee;
+    background: #fafafa;
+    align-items: center;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .legend-color { width: 14px; height: 14px; border-radius: 2px; }
+  .hint {
+    color: var(--muted);
+    margin-left: auto;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>融資餘額佔市值比 走勢圖</h1>
+  <span class="muted">2020-01-02 ~ today · 上市 + 上櫃</span>
+  <a href="/comprehensive" class="nav-btn">← 回綜合整理</a>
+</header>
+
+<div class="legend">
+  <div class="legend-item">
+    <span class="legend-color" style="background:#dc2626"></span>
+    <span>上市 (TWSE) — 左軸</span>
+  </div>
+  <div class="legend-item">
+    <span class="legend-color" style="background:#2563eb"></span>
+    <span>上櫃 (TPEX) — 右軸</span>
+  </div>
+  <span class="hint">滑鼠滾輪 zoom · 拖曳 pan · 雙擊 reset</span>
+</div>
+
+<div id="chartArea"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js"></script>
+<script>
+"use strict";
+
+async function init() {
+  const r = await fetch("/api/comprehensive").then(r => r.json());
+  const rows = (r.rows || []).filter(x =>
+    x.twse_margin_pct != null && x.tpex_margin_pct != null
+  );
+  if (!rows.length) {
+    document.getElementById("chartArea").textContent = "(無資料)";
+    return;
+  }
+
+  // uPlot 要 array-of-arrays format: [xs, ys1, ys2, ...]
+  const xs = rows.map(x => Math.floor(new Date(x.date + "T00:00:00").getTime() / 1000));
+  const twseSeries = rows.map(x => x.twse_margin_pct * 100);  // 換成 % 方便讀
+  const tpexSeries = rows.map(x => x.tpex_margin_pct * 100);
+
+  const data = [xs, twseSeries, tpexSeries];
+
+  function getSize() {
+    const area = document.getElementById("chartArea");
+    return { width: area.clientWidth - 32, height: area.clientHeight - 32 };
+  }
+
+  const opts = {
+    ...getSize(),
+    title: "",
+    cursor: {
+      drag: { x: true, y: false, setScale: true },  // 拖曳 X 軸 zoom
+      points: { size: 4 },
+    },
+    scales: {
+      x: { time: true },
+      // 左軸: TWSE 上市 (range ~0.15-0.92%)
+      twse: { auto: true },
+      // 右軸: TPEX 上櫃 (range ~1.10-1.81%)
+      tpex: { auto: true },
+    },
+    axes: [
+      {
+        // X 軸日期
+        values: (u, vals) => vals.map(v => {
+          const d = new Date(v * 1000);
+          return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+        }),
+      },
+      {
+        // 左 Y 軸 TWSE %
+        scale: "twse",
+        stroke: "#dc2626",
+        values: (u, vals) => vals.map(v => v.toFixed(2) + "%"),
+        size: 70,
+      },
+      {
+        // 右 Y 軸 TPEX %
+        side: 1,
+        scale: "tpex",
+        stroke: "#2563eb",
+        values: (u, vals) => vals.map(v => v.toFixed(2) + "%"),
+        size: 70,
+        grid: { show: false },  // 避免 grid 線重疊
+      },
+    ],
+    series: [
+      {},  // x-axis placeholder
+      {
+        label: "上市 TWSE",
+        scale: "twse",
+        stroke: "#dc2626",
+        width: 1.5,
+        value: (u, v) => v == null ? "" : v.toFixed(4) + "%",
+      },
+      {
+        label: "上櫃 TPEX",
+        scale: "tpex",
+        stroke: "#2563eb",
+        width: 1.5,
+        value: (u, v) => v == null ? "" : v.toFixed(4) + "%",
+      },
+    ],
+  };
+
+  const u = new uPlot(opts, data, document.getElementById("chartArea"));
+
+  // 滑鼠滾輪 zoom (uPlot 沒內建, 自己加)
+  function attachWheelZoom(plot) {
+    plot.over.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 0.85 : 1.18;  // up=zoom-in, down=zoom-out
+      const xMin = plot.scales.x.min, xMax = plot.scales.x.max;
+      // pivot at mouse x position
+      const rect = plot.over.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const cursorVal = plot.posToVal(cursorX, "x");
+      const newMin = cursorVal - (cursorVal - xMin) * factor;
+      const newMax = cursorVal + (xMax - cursorVal) * factor;
+      plot.setScale("x", { min: newMin, max: newMax });
+    }, { passive: false });
+  }
+  attachWheelZoom(u);
+
+  // 雙擊 reset
+  u.over.addEventListener("dblclick", () => {
+    u.setScale("x", { min: xs[0], max: xs[xs.length - 1] });
+  });
+
+  // 視窗 resize
+  window.addEventListener("resize", () => u.setSize(getSize()));
+}
+
+init();
+</script>
+</body>
+</html>

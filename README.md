@@ -132,6 +132,10 @@ stop.bat    # 停掉
 - `http://localhost:8765/` — 主表「For X 開盤前看」(柴柴 6 列彙整)
 - `http://localhost:8765/comprehensive` — **綜合整理 view**：完整 timeseries
   table，復刻 Excel「綜合整理」 sheet（v0.9 起）
+- `http://localhost:8765/chart` — **融資餘額佔市值比走勢圖** (v0.10.41)
+  - 雙 Y 軸: 上市 TWSE 紅 (左) + 上櫃 TPEX 藍 (右)
+  - 滑鼠滾輪 zoom, 拖曳 pan, 雙擊 reset
+  - 用 uPlot CDN (no build)
 
 ### Refresh 行為 (v0.10.27 起 catch-up mode, v0.10.37 統一兩 view)
 - 兩 view (主表 / 綜合整理) Refresh button 行為**完全一致**:

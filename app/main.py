@@ -172,6 +172,11 @@ def comprehensive_page() -> FileResponse:
     return FileResponse(STATIC / "comprehensive.html")
 
 
+@app.get("/chart")
+def chart_page() -> FileResponse:
+    return FileResponse(STATIC / "chart.html")
+
+
 @app.get("/api/dashboard")
 def api_dashboard(response: Response,
                   view_date: str | None = Query(default=None),

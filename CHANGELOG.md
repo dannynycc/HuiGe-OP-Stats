@@ -1,5 +1,24 @@
 # Changelog
 
+## [v0.10.41] - 2026-05-06 17:50
+
+### Added: 融資餘額佔市值比 走勢圖 `/chart`
+- 用 uPlot CDN (~50KB) — 不破壞 「無 chart lib」 spec 太多 (CDN, no build)
+- X 軸: 日期 (2020-01-02 ~ today, 愈右愈近)
+- Dual Y 軸:
+  - 左軸 (紅): 上市 TWSE % (range 0.16~0.91%)
+  - 右軸 (藍): 上櫃 TPEX % (range 1.10~1.81%)
+- 互動:
+  - **滑鼠滾輪 zoom** (mouse pivot, scale around cursor)
+  - **拖曳 pan** (uPlot internal drag)
+  - **雙擊 reset** (回 full picture)
+- 綜合整理 header 加 「📈 走勢圖」 button
+
+### Tech
+- `app/main.py`: `/chart` route → `static/chart.html`
+- uPlot scales: `twse` + `tpex` 各自 auto-range
+- Custom wheel handler 對 X 軸 zoom (uPlot 沒內建)
+
 ## [v0.10.40] - 2026-05-06 17:30
 
 ### Fixed (用戶: 綜合整理 spinner 應取代資料日期 info)
