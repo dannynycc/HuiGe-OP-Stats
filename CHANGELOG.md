@@ -1,5 +1,41 @@
 # Changelog
 
+## [v0.10.51] - 2026-05-07 07:31
+
+### 兩個 bug fix (用戶: 5/6 夜盤抓不到 + 5/7 早上不該出現 row)
+
+#### Bug 1: catch_up 永遠抓不到「昨天的夜盤」
+- 用戶: 「2026/5/6 夜盤資訊完全沒辦法更新」
+- Root cause: catch_up_refresh 只跑 `[last_db+1 ~ today]`, 從不重抓 `last_db`
+  - last_db = 2026-05-06 (= last day session in DB)
+  - today = 2026-05-07
+  - target_dates = [5/7] only
+  - 但 「5/6 night session」 = 5/6 15:00 ~ 5/7 05:00, 早上 ~05:30 才釋出
+  - 5/6 已經過 last_db check 不會 re-refresh, 5/7 fetch_op_night queryDate=5/7
+    對應 「5/7 night」 (還沒開始) → 0 rows
+  - **結果**: 「T 日夜盤」 永久 missing
+- Fix: catch_up target_dates 也 include `last_db` (= 重抓昨天拿 night + 晚到的
+  margin/mkt_cap)
+- Verify: 重跑 catch_up 後 op_legal 5/6 night=6 row, fut_legal 5/6 night=55 row,
+  fut_pre_open_net 從 -53560 (純日盤 OI) 重算成 -54157 (= 日盤 OI + 夜盤 net) ✓
+
+#### Bug 2: 早上跑 refresh 把今天 partial row 寫進綜合整理
+- 用戶: 「綜合整理前一日日盤Data 已經跑出了 2026/5/7 — 13:30 還沒收盤不該顯示」
+- Root cause: write_to_db 寫 daily_summary 的 guard 只 check 「any col not None」.
+  早上 跑 refresh 時:
+  - fut_price endpoint 已 release 早盤 quote → tx_close=42320 (= 期貨 quote, 不
+    是收盤)
+  - op_legal day = 0 row (= 還沒收盤)
+  - 結果 寫 daily_summary 5/7 partial row, 綜合整理顯示 「前一日日盤Data=5/7」
+- Fix: 寫 daily_summary 前先 check 「日盤是否完整」 (op_legal day=30 + fut_legal
+  day=73). 不完整 → 不寫 (有 stale row 連同清掉)
+- Verify: refresh 後 daily_summary 最新 = 2026-05-06, 沒有 5/7 row ✓
+
+#### Tech
+- `app/refresh.py` `catch_up_refresh`: target_dates 加 `last_db.insert(0, last_db)`
+- `app/refresh.py` `write_to_db`: daily_summary 寫入前 加 day_complete check
+  (op_day_count >= 30 AND fut_day_count >= 73), 不完整跳過 + DELETE existing
+
 ## [v0.10.50] - 2026-05-07 00:16
 
 ### Stock_fut chart 改 2 dual-axis panel + cursor sync + zoom sync + 重配色

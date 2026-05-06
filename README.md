@@ -152,11 +152,16 @@ stop.bat    # 停掉
   - **zoom-out 上限 = 全部 data 跨度** (v0.10.42, clamp 到 [xs[0], xs[last]])
   - 線圖用 uPlot CDN, scatter 用 vanilla canvas
 
-### Refresh 行為 (v0.10.27 起 catch-up mode, v0.10.37 統一兩 view)
+### Refresh 行為 (v0.10.27 起 catch-up mode, v0.10.37 統一兩 view, v0.10.51 修夜盤)
 - 兩 view (主表 / 綜合整理) Refresh button 行為**完全一致**:
   - 都 `POST /api/refresh` (no date param)
   - catch_up_refresh: 補 last_db_date+1 ~ today 所有 weekdays
   - **always include today** (= today data evolving, 一定 refetch)
+  - **always include last_db_date** (v0.10.51 起): 「T 日夜盤」 = T 15:00 ~ T+1
+    05:00 早上才釋出, 必須重抓昨天才不會 missing
+  - **日盤未收盤時不寫 daily_summary** (v0.10.51): 早上跑 refresh, fut_price 早盤
+    quote 已釋出但 op_legal day < 30 row → 跳過 daily_summary 寫入 (= 綜合整理
+    13:30 收盤前不顯示今天 row)
 - API 仍保留 `?date=YYYY-MM-DD` (= override single-day) + `?catch_up=false` 給 backend testing
 - UI: 跑時轉圈 spinner + 「抓取資料中…」 (v0.10.38)
 - Status 白話訊息 (v0.10.38): 「資料還沒收完 (期貨 70/73) — 等 14:30 收盤後再按一次」 etc.

@@ -212,6 +212,13 @@ def catch_up_refresh(today: date | None = None) -> dict[str, Any]:
     today_iso = today.isoformat()
     if today.weekday() < 5 and today_iso not in target_dates:
         target_dates.append(today_iso)
+    # Also re-refresh last_db — its **night session** (T 日夜盤 = T 15:00 ~ T+1
+    # 05:00) only releases ~05:30 next morning, which falls AFTER last_db was
+    # first ingested. Without re-refresh, "T 日夜盤" rows are permanently
+    # missing from op_legal/fut_legal. Same applies to late-arriving credit /
+    # mkt_cap on T (sometimes hours after close).
+    if last_db not in target_dates and last_db != today_iso:
+        target_dates.insert(0, last_db)
 
     if not target_dates:
         return {"mode": "no_op", "last_db": last_db, "today": today.isoformat(),
@@ -580,6 +587,19 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
         if tp_h.get("actual_date") == date_dash:
             summary["tpex_index_close"] = tp_h.get("tpex_index_close")
 
+        # Day-session completeness check: 必須 op_legal day=30 + fut_legal day=73
+        # 才算「日盤已收盤」, 否則早上跑 refresh 會用 fut_price 早盤 quote 寫進
+        # tx_close 造成綜合整理顯示「明明還沒收盤」的 partial row
+        op_day_count = con.execute(
+            "SELECT COUNT(*) FROM op_legal WHERE date=? AND daynight='day'",
+            (date_dash,)
+        ).fetchone()[0]
+        fut_day_count = con.execute(
+            "SELECT COUNT(*) FROM fut_legal WHERE date=? AND daynight='day'",
+            (date_dash,)
+        ).fetchone()[0]
+        day_complete = (op_day_count >= 30 and fut_day_count >= 73)
+
         existing = con.execute(
             "SELECT * FROM daily_summary WHERE date = ?", (date_dash,)
         ).fetchone()
@@ -589,22 +609,27 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
                 "twse_margin_amt_oku", "tpex_margin_amt_oku",
                 "twse_mkt_cap_chao", "tpex_mkt_cap_chao",
                 "twii_close", "mkt_cap_source", "tpex_index_close"]
-        merged = {}
-        for c in cols:
-            new_val = summary.get(c)
-            old_val = existing[c] if existing else None
-            merged[c] = new_val if new_val is not None else old_val
-        # Skip writing the row if it would be all-NULL (e.g. backfilling a
-        # holiday — no point creating an empty placeholder).
-        if any(v is not None for v in merged.values()):
-            con.execute(f"""
-                INSERT OR REPLACE INTO daily_summary
-                (date, {", ".join(cols)})
-                VALUES (?, {", ".join("?" * len(cols))})
-            """, (date_dash, *[merged[c] for c in cols]))
-        elif existing:
-            # All inputs NULL but DB had an existing row — also clean it up
-            con.execute("DELETE FROM daily_summary WHERE date = ?", (date_dash,))
+        if not day_complete:
+            # 日盤未收盤 → 不寫 daily_summary (= 不在綜合整理出現). 若已有 row,
+            # 一併清掉 (e.g. 早上 refresh 不小心寫進去過).
+            if existing:
+                con.execute("DELETE FROM daily_summary WHERE date = ?", (date_dash,))
+        else:
+            merged = {}
+            for c in cols:
+                new_val = summary.get(c)
+                old_val = existing[c] if existing else None
+                merged[c] = new_val if new_val is not None else old_val
+            # Skip writing the row if it would be all-NULL (e.g. backfilling a
+            # holiday — no point creating an empty placeholder).
+            if any(v is not None for v in merged.values()):
+                con.execute(f"""
+                    INSERT OR REPLACE INTO daily_summary
+                    (date, {", ".join(cols)})
+                    VALUES (?, {", ".join("?" * len(cols))})
+                """, (date_dash, *[merged[c] for c in cols]))
+            elif existing:
+                con.execute("DELETE FROM daily_summary WHERE date = ?", (date_dash,))
 
 
 def compute_daily_summary(target_date: str, results: dict[str, Any]) -> dict[str, Any]:
