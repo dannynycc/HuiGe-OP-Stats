@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.10.30] - 2026-05-06 14:55
+
+### Fixed (用戶: 字超框 + 你明明就有工具可以檢查)
+- 我 v0.10.29 改 `table-layout: fixed` 沒驗 visual, col widths 跟 cell 內容
+  不 match → 「(三)」 corner 超框 / 「開盤前多空」 col header 超框
+- 修: redistribute col widths
+  - corner 8% → 14% (容 「For 2026/5/6(三) 開盤前看」)
+  - 開盤前多空 8% → 12% (容 5 中字 header)
+  - 其他 col 縮 1-2%
+- **Auto-verified Playwright**: 3 viewports (1366/1600/1900) × 5 dates
+  (2020-03-25 / 2023-02-21 / 2024-08-15 / 2025-04-29 / 2026-05-06) = 15 場景
+  全部 0 overflow
+
+### Lesson
+改 layout 不能只看數值, 必跑 Playwright 對 cell scrollWidth > offsetWidth check.
+verify_sticky.py 跟 verify_main_view.py 已有 logic, 但 col widths fixed 後
+也要 audit ALL cells (corner / header / data) 不 wrap.
+
 ## [v0.10.29] - 2026-05-06 14:45
 
 ### Fixed (用戶: 切換日期時表格欄寬會抖動)
