@@ -2,27 +2,23 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<title>融資餘額佔市值比 走勢圖</title>
+<title>融資餘額佔市值比 + 指數 走勢圖</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
 <style>
   :root { --bg: #ffffff; --fg: #000000; --muted: #6b7280; }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
-    background: var(--bg);
-    color: var(--fg);
+    background: var(--bg); color: var(--fg);
     font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
     font-size: 13px;
-    display: flex;
-    flex-direction: column;
+    display: flex; flex-direction: column;
   }
   header {
     padding: 10px 16px;
     border-bottom: 1px solid #ddd;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-shrink: 0;
+    display: flex; align-items: center; gap: 12px;
+    flex-shrink: 0; flex-wrap: wrap;
   }
   header h1 { margin: 0; font-size: 16px; font-weight: 600; }
   header span.muted { color: var(--muted); font-size: 13px; }
@@ -36,54 +32,454 @@
   }
   .nav-btn:hover { background: #2c5aa0; color: #fff; }
 
-  /* Chart container — full viewport width, mostly height */
+  /* mode toggle button bar */
+  .mode-bar { display: flex; gap: 4px; margin-left: 12px; }
+  .mode-btn {
+    background: #f5f5f5; border: 1px solid #ccc;
+    padding: 5px 12px; cursor: pointer; font-size: 12px;
+    border-radius: 3px; color: #333;
+  }
+  .mode-btn:hover { background: #e8e8e8; }
+  .mode-btn.active {
+    background: #2c5aa0; color: #fff; border-color: #2c5aa0; font-weight: 600;
+  }
+
   #chartArea {
     flex: 1;
     padding: 16px;
     min-height: 0;
     overflow: hidden;
-  }
-  .legend {
     display: flex;
-    gap: 24px;
-    padding: 8px 16px;
+  }
+  /* layout containers, switched by mode */
+  .layout-stacked { flex-direction: column; gap: 12px; }
+  .layout-single  { flex-direction: column; }
+  .panel { flex: 1 1 0; min-height: 0; min-width: 0; position: relative; }
+  .panel-title {
+    position: absolute; top: 4px; left: 12px;
+    font-size: 12px; color: var(--muted); font-weight: 600;
+    pointer-events: none; z-index: 2;
+  }
+
+  .legend {
+    display: flex; gap: 18px;
+    padding: 6px 16px;
     border-bottom: 1px solid #eee;
-    background: #fafafa;
-    align-items: center;
+    background: #fafafa; align-items: center; flex-wrap: wrap;
   }
-  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-  .legend-color { width: 14px; height: 14px; border-radius: 2px; }
-  .hint {
-    color: var(--muted);
-    margin-left: auto;
-    font-size: 12px;
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+  .legend-color.dashed {
+    background: repeating-linear-gradient(45deg, currentColor 0 4px, transparent 4px 8px);
   }
+  .hint { color: var(--muted); margin-left: auto; font-size: 12px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>融資餘額佔市值比 走勢圖</h1>
-  <span class="muted">2020-01-02 ~ today · 上市 + 上櫃</span>
+  <h1>融資餘額佔市值比 + 指數 走勢圖</h1>
+  <span class="muted">2020-01-02 ~ today</span>
+  <div class="mode-bar" id="modeBar">
+    <button class="mode-btn active" data-mode="stacked">A · 上下雙圖</button>
+    <button class="mode-btn"        data-mode="original">B · 純融資%</button>
+    <button class="mode-btn"        data-mode="scatter">C · 散佈圖</button>
+    <button class="mode-btn"        data-mode="heatmap">D · 月份熱力圖</button>
+  </div>
   <a href="/comprehensive" class="nav-btn">← 回綜合整理</a>
 </header>
 
-<div class="legend">
-  <div class="legend-item">
-    <span class="legend-color" style="background:#dc2626"></span>
-    <span>上市 (TWSE) — 左軸</span>
-  </div>
-  <div class="legend-item">
-    <span class="legend-color" style="background:#2563eb"></span>
-    <span>上櫃 (TPEX) — 右軸</span>
-  </div>
-  <span class="hint">滑鼠滾輪 zoom · 拖曳 pan · 雙擊 reset</span>
-</div>
-
-<div id="chartArea"></div>
+<div class="legend" id="legend"></div>
+<div id="chartArea" class="layout-stacked"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js"></script>
 <script>
 "use strict";
+
+// ── 顏色 / style 約定 ──
+// 上市 (TWSE): 紅 #dc2626
+// 加權指數:    暗紅 #991b1b, 虛線
+// 上櫃 (TPEX): 藍 #2563eb
+// OTC 指數:    暗藍 #1e3a8a, 虛線
+const COLOR = {
+  twseMargin: "#dc2626",
+  twii:       "#991b1b",
+  tpexMargin: "#2563eb",
+  otcIdx:     "#1e3a8a",
+};
+
+let plots = [];   // 目前活著的 uPlot instances (resize 用)
+let DATA = null;  // { xs, twseMargin, tpexMargin, twii, otc, dataMin, dataMax }
+
+function destroyPlots() {
+  for (const u of plots) try { u.destroy(); } catch {}
+  plots = [];
+}
+
+function attachWheelZoom(plot, dataMin, dataMax) {
+  plot.over.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 0.85 : 1.18;
+    const xMin = plot.scales.x.min, xMax = plot.scales.x.max;
+    const rect = plot.over.getBoundingClientRect();
+    const cursorVal = plot.posToVal(e.clientX - rect.left, "x");
+    let newMin = cursorVal - (cursorVal - xMin) * factor;
+    let newMax = cursorVal + (xMax - cursorVal) * factor;
+    if (newMin < dataMin) newMin = dataMin;
+    if (newMax > dataMax) newMax = dataMax;
+    if (newMin >= newMax) { newMin = dataMin; newMax = dataMax; }
+    plot.setScale("x", { min: newMin, max: newMax });
+  }, { passive: false });
+  plot.over.addEventListener("dblclick", () => {
+    plot.setScale("x", { min: dataMin, max: dataMax });
+  });
+}
+
+// X-axis date formatter (shared)
+const xAxisVals = (u, vals) => vals.map(v => {
+  const d = new Date(v * 1000);
+  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+});
+
+// 計算 panel size — chartArea 父元素已 layout, 直接量 + 按 mode 切
+function getPanelSize(mode) {
+  const area = document.getElementById("chartArea");
+  // chartArea 有 padding 16, gap 12 between panels
+  const w = Math.max(100, area.clientWidth  - 32);
+  const h = Math.max(100, area.clientHeight - 32);
+  if (mode === "stacked")    return { w,                              h: Math.floor((h - 12) / 2) };
+  if (mode === "sidebyside") return { w: Math.floor((w - 12) / 2),    h };
+  return { w, h };
+}
+
+// 通用: 雙 Y 軸 panel (左 = 指數, 右 = 融資%)
+function makeDualPanel(container, title, size, xs, idxData, pctData, idxColor, pctColor, idxLabel, pctLabel) {
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  if (title) {
+    const t = document.createElement("div");
+    t.className = "panel-title"; t.textContent = title;
+    panel.appendChild(t);
+  }
+  container.appendChild(panel);
+
+  const opts = {
+    width: size.w, height: size.h,
+    cursor: { drag: { x: true, y: false, setScale: true } },
+    scales: {
+      x: { time: true },
+      idx: { auto: true },
+      pct: { auto: true },
+    },
+    axes: [
+      { values: xAxisVals },
+      { scale: "idx", stroke: idxColor,
+        values: (u, vs) => vs.map(v => v.toLocaleString("en-US", {maximumFractionDigits:0})),
+        size: 60 },
+      { side: 1, scale: "pct", stroke: pctColor,
+        values: (u, vs) => vs.map(v => v.toFixed(2) + "%"),
+        size: 60, grid: { show: false } },
+    ],
+    series: [
+      {},
+      { label: idxLabel, scale: "idx", stroke: idxColor, width: 1.2,
+        dash: [6, 4],
+        value: (u, v) => v == null ? "" : v.toLocaleString("en-US", {maximumFractionDigits:2}) },
+      { label: pctLabel, scale: "pct", stroke: pctColor, width: 1.5,
+        value: (u, v) => v == null ? "" : v.toFixed(4) + "%" },
+    ],
+  };
+  const u = new uPlot(opts, [xs, idxData, pctData], panel);
+  attachWheelZoom(u, DATA.dataMin, DATA.dataMax);
+  plots.push(u);
+}
+
+// Mode A: 上下兩 panel
+function renderStacked() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-stacked";
+  area.innerHTML = "";
+  const size = getPanelSize("stacked");
+  makeDualPanel(area, "上市 (加權指數 + 融資%)", size,
+    DATA.xs, DATA.twii, DATA.twseMargin,
+    COLOR.twii, COLOR.twseMargin,
+    "加權指數", "上市融資%");
+  makeDualPanel(area, "上櫃 (OTC指數 + 融資%)", size,
+    DATA.xs, DATA.otc, DATA.tpexMargin,
+    COLOR.otcIdx, COLOR.tpexMargin,
+    "OTC指數", "上櫃融資%");
+}
+
+// 純 % 對比 (兩條 line, dual axis, no 指數)
+function renderOriginal() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-single";
+  area.innerHTML = "";
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  area.appendChild(panel);
+  const size = getPanelSize("original");
+  const opts = {
+    width: size.w, height: size.h,
+    cursor: { drag: { x: true, y: false, setScale: true } },
+    scales: { x: { time: true }, twse: { auto: true }, tpex: { auto: true } },
+    axes: [
+      { values: xAxisVals },
+      { scale: "twse", stroke: COLOR.twseMargin, size: 70,
+        values: (u, vs) => vs.map(v => v.toFixed(2) + "%") },
+      { side: 1, scale: "tpex", stroke: COLOR.tpexMargin, size: 70,
+        values: (u, vs) => vs.map(v => v.toFixed(2) + "%"), grid: { show: false } },
+    ],
+    series: [
+      {},
+      { label: "上市 TWSE", scale: "twse", stroke: COLOR.twseMargin, width: 1.5,
+        value: (u, v) => v==null?"":v.toFixed(4)+"%" },
+      { label: "上櫃 TPEX", scale: "tpex", stroke: COLOR.tpexMargin, width: 1.5,
+        value: (u, v) => v==null?"":v.toFixed(4)+"%" },
+    ],
+  };
+  const u = new uPlot(opts, [DATA.xs, DATA.twseMargin, DATA.tpexMargin], panel);
+  attachWheelZoom(u, DATA.dataMin, DATA.dataMax);
+  plots.push(u);
+}
+
+// 綠→黃→紅 三色階, ratio in [0,1]
+function colorScale(ratio) {
+  ratio = Math.max(0, Math.min(1, ratio));
+  const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+  const G = [99, 190, 123], Y = [255, 235, 132], R = [248, 113, 113];
+  if (ratio <= 0.5) {
+    const t = ratio * 2;
+    return `rgb(${lerp(G[0],Y[0],t)},${lerp(G[1],Y[1],t)},${lerp(G[2],Y[2],t)})`;
+  }
+  const t = (ratio - 0.5) * 2;
+  return `rgb(${lerp(Y[0],R[0],t)},${lerp(Y[1],R[1],t)},${lerp(Y[2],R[2],t)})`;
+}
+
+function pearsonR(xs, ys) {
+  const n = xs.length;
+  const mx = xs.reduce((a,b)=>a+b)/n;
+  const my = ys.reduce((a,b)=>a+b)/n;
+  let num=0, dx=0, dy=0;
+  for (let i = 0; i < n; i++) {
+    num += (xs[i]-mx) * (ys[i]-my);
+    dx  += (xs[i]-mx) ** 2;
+    dy  += (ys[i]-my) ** 2;
+  }
+  return num / Math.sqrt(dx * dy);
+}
+
+// Mode C: 散佈圖 — 兩 panel, 自繪 canvas, 含 Pearson r
+function drawScatterPanel(container, title, size, xData, yData, color) {
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  panel.style.width = size.w + "px";
+  panel.style.height = size.h + "px";
+  if (title) {
+    const t = document.createElement("div");
+    t.className = "panel-title"; t.textContent = title;
+    panel.appendChild(t);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = size.w; canvas.height = size.h;
+  panel.appendChild(canvas);
+  container.appendChild(panel);
+
+  const ctx = canvas.getContext("2d");
+  const M = { l: 70, r: 16, t: 32, b: 36 };
+  const W = size.w - M.l - M.r, H = size.h - M.t - M.b;
+  const points = xData.map((x, i) => [x, yData[i]])
+                      .filter(([x, y]) => x != null && y != null);
+  if (!points.length) return;
+  const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+
+  ctx.font = "11px sans-serif";
+  ctx.fillStyle = "#666";
+  ctx.strokeStyle = "#eee";
+  for (let i = 0; i <= 5; i++) {
+    const py = M.t + H * (1 - i / 5);
+    const yval = yMin + (yMax - yMin) * i / 5;
+    ctx.textAlign = "right";
+    ctx.fillText(yval.toFixed(2) + "%", M.l - 6, py + 4);
+    ctx.beginPath(); ctx.moveTo(M.l, py); ctx.lineTo(M.l + W, py); ctx.stroke();
+  }
+  for (let i = 0; i <= 6; i++) {
+    const px = M.l + W * i / 6;
+    const xval = xMin + (xMax - xMin) * i / 6;
+    ctx.textAlign = "center";
+    ctx.fillText(xval.toLocaleString("en-US", {maximumFractionDigits: 0}), px, M.t + H + 18);
+  }
+  ctx.strokeStyle = "#888";
+  ctx.beginPath();
+  ctx.moveTo(M.l, M.t); ctx.lineTo(M.l, M.t + H); ctx.lineTo(M.l + W, M.t + H);
+  ctx.stroke();
+
+  // 點: 時間 alpha gradient (淡 → 濃 = 早 → 晚)
+  for (let i = 0; i < points.length; i++) {
+    const [x, y] = points[i];
+    const px = M.l + (x - xMin) / (xMax - xMin) * W;
+    const py = M.t + (1 - (y - yMin) / (yMax - yMin)) * H;
+    const alpha = 0.15 + 0.55 * (i / points.length);
+    ctx.fillStyle = color + Math.round(alpha * 255).toString(16).padStart(2, "0");
+    ctx.beginPath();
+    ctx.arc(px, py, 2.2, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+
+  const r = pearsonR(xs, ys);
+  ctx.fillStyle = color;
+  ctx.font = "bold 13px sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText(`Pearson r = ${r.toFixed(3)}  (n=${points.length}, 全段)`,
+               M.l + W - 8, M.t + 18);
+  ctx.fillStyle = "#666";
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("● 點顏色: 淡 = 早 (2020), 濃 = 近 (2026)", M.l + 4, M.t + 18);
+}
+
+function renderScatter() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-stacked";
+  area.innerHTML = "";
+  const size = getPanelSize("stacked");
+  drawScatterPanel(area, "上市: 加權指數 (X) vs 上市融資% (Y)",
+                   size, DATA.twii, DATA.twseMargin, COLOR.twseMargin);
+  drawScatterPanel(area, "上櫃: OTC指數 (X) vs 上櫃融資% (Y)",
+                   size, DATA.otc, DATA.tpexMargin, COLOR.tpexMargin);
+}
+
+// Mode D: 月份熱力圖 — 年×月 grid, color = 該月 avg 融資%
+function mkCell(text, cssText, titleAttr) {
+  const e = document.createElement("div");
+  e.textContent = text;
+  if (cssText) e.style.cssText = cssText;
+  if (titleAttr) e.title = titleAttr;
+  return e;
+}
+
+function drawHeatmapPanel(container, title, size, dates, vals) {
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  panel.style.width = size.w + "px";
+  panel.style.height = size.h + "px";
+  panel.style.padding = "26px 16px 14px 16px";
+  panel.style.overflow = "auto";
+
+  if (title) {
+    const t = document.createElement("div");
+    t.className = "panel-title"; t.textContent = title;
+    panel.appendChild(t);
+  }
+  const byYM = {};
+  for (let i = 0; i < dates.length; i++) {
+    if (vals[i] == null || !dates[i]) continue;
+    const ym = dates[i].slice(0, 7);
+    (byYM[ym] = byYM[ym] || []).push(vals[i]);
+  }
+  const monthAvg = {};
+  for (const ym in byYM) {
+    monthAvg[ym] = byYM[ym].reduce((a,b)=>a+b, 0) / byYM[ym].length;
+  }
+  const allVals = Object.values(monthAvg);
+  const mn = Math.min(...allVals), mx = Math.max(...allVals);
+  const yms = Object.keys(monthAvg).sort();
+  const years = [...new Set(yms.map(s => s.slice(0,4)))].sort();
+
+  const grid = document.createElement("div");
+  grid.style.display = "grid";
+  grid.style.gridTemplateColumns = "50px repeat(12, 1fr)";
+  grid.style.gap = "2px";
+  grid.style.fontSize = "11px";
+
+  grid.appendChild(mkCell(""));
+  for (let m = 1; m <= 12; m++) {
+    grid.appendChild(mkCell(`${m}月`, "text-align:center;color:#666;font-weight:600;padding:2px 0"));
+  }
+  for (const y of years) {
+    grid.appendChild(mkCell(y, "text-align:right;color:#666;padding:6px 6px 6px 0;font-weight:600"));
+    for (let m = 1; m <= 12; m++) {
+      const ym = `${y}-${String(m).padStart(2,"0")}`;
+      const v = monthAvg[ym];
+      if (v == null) {
+        grid.appendChild(mkCell("", "background:#f5f5f5;padding:6px 0"));
+      } else {
+        const ratio = (v - mn) / (mx - mn);
+        const bg = colorScale(ratio);
+        const fg = ratio > 0.6 ? "#fff" : "#000";
+        grid.appendChild(mkCell(v.toFixed(2)+"%",
+          `background:${bg};text-align:center;padding:6px 0;color:${fg};font-variant-numeric:tabular-nums`,
+          `${ym}: ${v.toFixed(4)}%`));
+      }
+    }
+  }
+  panel.appendChild(grid);
+
+  // 色階 legend (用 DOM 不用 innerHTML)
+  const legend = document.createElement("div");
+  legend.style.cssText = "margin-top:8px;display:flex;gap:6px;align-items:center;font-size:11px;color:#666";
+  legend.appendChild(mkCell(`${mn.toFixed(2)}% (低)`));
+  const swatch = document.createElement("span");
+  swatch.style.cssText = `display:inline-block;width:160px;height:10px;background:linear-gradient(to right,${colorScale(0)},${colorScale(0.5)},${colorScale(1)})`;
+  legend.appendChild(swatch);
+  legend.appendChild(mkCell(`${mx.toFixed(2)}% (高)`));
+  panel.appendChild(legend);
+
+  container.appendChild(panel);
+}
+
+function renderHeatmap() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-stacked";
+  area.innerHTML = "";
+  const size = getPanelSize("stacked");
+  drawHeatmapPanel(area, "上市: 月平均融資餘額佔市值比",
+                   size, DATA.dates, DATA.twseMargin);
+  drawHeatmapPanel(area, "上櫃: 月平均融資餘額佔市值比",
+                   size, DATA.dates, DATA.tpexMargin);
+}
+
+const RENDER = {
+  stacked:  renderStacked,
+  original: renderOriginal,
+  scatter:  renderScatter,
+  heatmap:  renderHeatmap,
+};
+
+const LEGENDS = {
+  stacked:  [["twii","加權指數 (虛)"], ["twseMargin","上市融資%"], ["otcIdx","OTC指數 (虛)"], ["tpexMargin","上櫃融資%"]],
+  original: [["twseMargin","上市 TWSE"], ["tpexMargin","上櫃 TPEX"]],
+  scatter:  [["twseMargin","上市點 (X=加權, Y=融資%)"], ["tpexMargin","上櫃點 (X=OTC, Y=融資%)"]],
+  heatmap:  [["twseMargin","上市月均"], ["tpexMargin","上櫃月均"]],
+};
+
+function renderLegend(mode) {
+  const el = document.getElementById("legend");
+  const items = LEGENDS[mode] || [];
+  el.innerHTML = items.map(([k, label]) => {
+    const isDash = label.includes("虛") || (mode === "combined" && (k === "twii" || k === "otcIdx"));
+    const sw = isDash
+      ? `<span class="legend-color dashed" style="color:${COLOR[k]}"></span>`
+      : `<span class="legend-color" style="background:${COLOR[k]}"></span>`;
+    return `<span class="legend-item">${sw}<span>${label}</span></span>`;
+  }).join("") + `<span class="hint">滑鼠滾輪 zoom · 拖曳框選 zoom · 雙擊 reset</span>`;
+}
+
+function setMode(mode) {
+  destroyPlots();
+  document.querySelectorAll(".mode-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.mode === mode));
+  renderLegend(mode);
+  // Wait for layout class change → next frame for clientWidth/Height to be correct
+  requestAnimationFrame(() => RENDER[mode]());
+}
+
+function handleResize() {
+  // Re-render current mode (uPlot setSize 在 multi-panel 下不易處理 panel 隨容器變)
+  const active = document.querySelector(".mode-btn.active");
+  if (active) setMode(active.dataset.mode);
+}
 
 async function init() {
   const r = await fetch("/api/comprehensive").then(r => r.json());
@@ -94,110 +490,25 @@ async function init() {
     document.getElementById("chartArea").textContent = "(無資料)";
     return;
   }
-
-  // uPlot 要 array-of-arrays format: [xs, ys1, ys2, ...]
-  const xs = rows.map(x => Math.floor(new Date(x.date + "T00:00:00").getTime() / 1000));
-  const twseSeries = rows.map(x => x.twse_margin_pct * 100);  // 換成 % 方便讀
-  const tpexSeries = rows.map(x => x.tpex_margin_pct * 100);
-
-  const data = [xs, twseSeries, tpexSeries];
-
-  function getSize() {
-    const area = document.getElementById("chartArea");
-    return { width: area.clientWidth - 32, height: area.clientHeight - 32 };
-  }
-
-  const opts = {
-    ...getSize(),
-    title: "",
-    cursor: {
-      drag: { x: true, y: false, setScale: true },  // 拖曳 X 軸 zoom
-      points: { size: 4 },
-    },
-    scales: {
-      x: { time: true },
-      // 左軸: TWSE 上市 (range ~0.15-0.92%)
-      twse: { auto: true },
-      // 右軸: TPEX 上櫃 (range ~1.10-1.81%)
-      tpex: { auto: true },
-    },
-    axes: [
-      {
-        // X 軸日期
-        values: (u, vals) => vals.map(v => {
-          const d = new Date(v * 1000);
-          return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-        }),
-      },
-      {
-        // 左 Y 軸 TWSE %
-        scale: "twse",
-        stroke: "#dc2626",
-        values: (u, vals) => vals.map(v => v.toFixed(2) + "%"),
-        size: 70,
-      },
-      {
-        // 右 Y 軸 TPEX %
-        side: 1,
-        scale: "tpex",
-        stroke: "#2563eb",
-        values: (u, vals) => vals.map(v => v.toFixed(2) + "%"),
-        size: 70,
-        grid: { show: false },  // 避免 grid 線重疊
-      },
-    ],
-    series: [
-      {},  // x-axis placeholder
-      {
-        label: "上市 TWSE",
-        scale: "twse",
-        stroke: "#dc2626",
-        width: 1.5,
-        value: (u, v) => v == null ? "" : v.toFixed(4) + "%",
-      },
-      {
-        label: "上櫃 TPEX",
-        scale: "tpex",
-        stroke: "#2563eb",
-        width: 1.5,
-        value: (u, v) => v == null ? "" : v.toFixed(4) + "%",
-      },
-    ],
+  const dates      = rows.map(x => x.date);
+  const xs         = rows.map(x => Math.floor(new Date(x.date+"T00:00:00").getTime()/1000));
+  const twseMargin = rows.map(x => x.twse_margin_pct * 100);
+  const tpexMargin = rows.map(x => x.tpex_margin_pct * 100);
+  const twii       = rows.map(x => x.twii_close);
+  const otc        = rows.map(x => x.tpex_index_close);
+  DATA = {
+    xs, dates, twseMargin, tpexMargin, twii, otc,
+    dataMin: xs[0], dataMax: xs[xs.length-1],
   };
 
-  const u = new uPlot(opts, data, document.getElementById("chartArea"));
-
-  // 滑鼠滾輪 zoom (uPlot 沒內建, 自己加).
-  // Clamp 到 [xs[0], xs[last]] — zoom-out 不可超過 data 起終點.
-  const dataMin = xs[0];
-  const dataMax = xs[xs.length - 1];
-  function attachWheelZoom(plot) {
-    plot.over.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      const factor = e.deltaY < 0 ? 0.85 : 1.18;  // up=zoom-in, down=zoom-out
-      const xMin = plot.scales.x.min, xMax = plot.scales.x.max;
-      const rect = plot.over.getBoundingClientRect();
-      const cursorX = e.clientX - rect.left;
-      const cursorVal = plot.posToVal(cursorX, "x");
-      let newMin = cursorVal - (cursorVal - xMin) * factor;
-      let newMax = cursorVal + (xMax - cursorVal) * factor;
-      // Hard clamp 到 data range (zoom-out 上限 = full data 跨度)
-      if (newMin < dataMin) newMin = dataMin;
-      if (newMax > dataMax) newMax = dataMax;
-      // Edge case: 如果 clamp 後 newMin >= newMax, fallback 到 full range
-      if (newMin >= newMax) { newMin = dataMin; newMax = dataMax; }
-      plot.setScale("x", { min: newMin, max: newMax });
-    }, { passive: false });
-  }
-  attachWheelZoom(u);
-
-  // 雙擊 reset
-  u.over.addEventListener("dblclick", () => {
-    u.setScale("x", { min: xs[0], max: xs[xs.length - 1] });
+  document.querySelectorAll(".mode-btn").forEach(b =>
+    b.addEventListener("click", () => setMode(b.dataset.mode)));
+  window.addEventListener("resize", () => {
+    clearTimeout(window._resizeT);
+    window._resizeT = setTimeout(handleResize, 150);
   });
 
-  // 視窗 resize
-  window.addEventListener("resize", () => u.setSize(getSize()));
+  setMode("stacked");
 }
 
 init();

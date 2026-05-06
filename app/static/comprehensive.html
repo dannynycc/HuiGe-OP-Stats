@@ -81,6 +81,15 @@
     border-right: 1px solid #d0d0d0;
     border-bottom: 1px solid #d0d0d0;
   }
+  /* v0.10.43 user: 字短的窄 col 縮 padding (台指期/OTC/融資餘額/總市值 全用 3px 2px) */
+  table.zonghe th:nth-child(4),  table.zonghe td:nth-child(4),
+  table.zonghe th:nth-child(5),  table.zonghe td:nth-child(5),
+  table.zonghe th:nth-child(15), table.zonghe td:nth-child(15),
+  table.zonghe th:nth-child(16), table.zonghe td:nth-child(16),
+  table.zonghe th:nth-child(17), table.zonghe td:nth-child(17),
+  table.zonghe th:nth-child(18), table.zonghe td:nth-child(18) {
+    padding: 3px 2px;
+  }
   table.zonghe thead th {
     background: var(--header-bg);
     color: var(--fg);
@@ -156,8 +165,8 @@
       <col style="width:108px">  <!-- A: For 開盤前看 (date, 11 chars) -->
       <col style="width:108px">  <!-- B: 前一日日盤Data (date, 11 chars) -->
       <col style="width:90px">   <!-- C: 加權指數 (4 chars) -->
-      <col style="width:75px">   <!-- D: 台指期 日盤收盤 (title「台指期」3 字) -->
-      <col style="width:80px">   <!-- E: OTC指數 (上櫃指數 close, 4 chars + 千分位2小數) -->
+      <col style="width:60px">   <!-- D: 台指期 日盤收盤 (3 字, padding 已縮) -->
+      <col style="width:65px">   <!-- E: OTC指數 (4 字 + "410.29" 6 chars, padding 已縮) -->
       <col style="width:88px">   <!-- E: 台指期 法人淨部位 -->
       <col style="width:90px">   <!-- F: 台指期 開盤前多空 -->
       <col style="width:108px">  <!-- G: 法人買權CALL — 6 中 + 4 英 -->
@@ -167,10 +176,10 @@
       <col style="width:88px">   <!-- K: 股票期貨 法人淨部位 -->
       <col style="width:60px">   <!-- L: 上市 -->
       <col style="width:60px">   <!-- M: 上櫃 -->
-      <col style="width:88px">   <!-- N: 上市(億元) -->
-      <col style="width:88px">   <!-- O: 上櫃(億元) -->
-      <col style="width:88px">   <!-- P: 上市(兆元) -->
-      <col style="width:88px">   <!-- Q: 上櫃(兆元) -->
+      <col style="width:76px">   <!-- N: 上市(億元) max "12,102" 6 chars, padding 縮 -->
+      <col style="width:76px">   <!-- O: 上櫃(億元) -->
+      <col style="width:78px">   <!-- P: 上市(兆元) max "(134.16)" 8 chars, padding 縮 -->
+      <col style="width:78px">   <!-- Q: 上櫃(兆元) -->
     </colgroup>
     <thead>
       <!-- R1: group header.

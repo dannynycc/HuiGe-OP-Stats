@@ -1,5 +1,50 @@
 # Changelog
 
+## [v0.10.43] - 2026-05-06 17:39
+
+### 綜合整理 表寬 fit + chart 4 mode toggle
+
+#### 表寬縮 1615 → 1567 (1600 viewport fit, no h-scroll)
+- 用戶: 「整張大表又超框了 (因為加了OTC指數進去)」+ 「台指期/OTC指數/融資餘額/總市值 padding 可以縮一點」
+- `nth-child(4),(5),(15),(16),(17),(18)` cell padding 3px 5px → 3px 2px
+- col widths: 台指期 75→60, OTC指數 80→65, 融資餘額 88→76 ×2, 總市值 88→78 ×2
+- Playwright multi-viewport (1280/1366/1600/1920) 0 overflow ✓
+
+#### Chart `/chart` 4 mode 切換
+- 用戶: 「天馬行空... 多設計一點 ABCDEFGH 讓我驚喜」+ 「前提是你自己看的懂」
+- Self-review 後砍掉 2 個 (combined 4 軸混亂、normalize 跟 stacked 重複)、留:
+  - **A · 上下雙圖** (default) — 上 panel 加權指數+上市%, 下 panel OTC+上櫃%
+  - **B · 純融資%** — 兩條 % line dual axis (= v0.10.41 base)
+  - **C · 散佈圖** — 兩 panel scatter, 點 alpha gradient (淡=2020 → 濃=2026), 全段 Pearson r
+    - 結果有意思: 上市 r=-0.144 (幾乎無相關), 上櫃 r=0.681 (中度正相關)
+  - **D · 月份熱力圖** — 年×月 grid, color = 該月平均融資%, 上下兩 panel
+- Mode toggle button bar in header, click 切, default = A
+- `setMode(mode)`: destroyPlots() → renderLegend → render via RAF
+
+#### Race-condition fix (stacked panel 高度=0)
+- 之前 `panel.clientHeight` read 在 createElement+appendChild 同 sync block, layout
+  還沒 reflow → uPlot 拿到 height=0 → canvas invisible
+- 改 `getPanelSize(mode)`: 直接從 chartArea 父容器 clientWidth/Height 算, 不依賴
+  child element layout
+
+#### Tech
+- `app/static/chart.html` 重寫: 4 render functions + DATA cache + mode bar
+  - `renderStacked` / `renderOriginal` 用 uPlot
+  - `renderScatter` 用 vanilla canvas (uPlot 不擅 scatter)
+  - `renderHeatmap` 用 div grid (uPlot 不支援 heatmap)
+  - `colorScale` 綠→黃→紅 lerp helper (跟 comprehensive 一致)
+  - `pearsonR` static r 計算 (整段, 不是 rolling — rolling 對 trending series 統計
+    上 questionable)
+- `app/static/comprehensive.html` CSS:
+  - `:nth-child(4)/(5)/(15)/(16)/(17)/(18)` padding 3px 2px override
+  - colgroup col widths 縮
+
+#### Verified
+- 表寬 1567 ≤ 1600 viewport ✓ (Playwright 4 viewport 全 pass)
+- 4 chart mode 全部 render 成功 (canvases / panels count match expectation) ✓
+- Scatter Pearson r 計算正確 (上市 -0.144, 上櫃 0.681) ✓
+- Heatmap 月份聚合正確 (2026-04 上市 0.35%, 上櫃 1.62% 對 DB 內值) ✓
+
 ## [v0.10.42] - 2026-05-06 17:25
 
 ### Added: 上櫃指數 (OTC index) col + chart zoom-out clamp
