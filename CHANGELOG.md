@@ -1,5 +1,26 @@
 # Changelog
 
+## [v0.10.5] - 2026-05-06 07:45
+
+### Fixed (用戶: 選擇權未平倉的開盤前多空是不是亂算)
+
+#### Layout bug — R1 group 把「開盤前多空」放錯位置
+- 之前: R1「選擇權未平倉」 colspan=4 (CALL/PUT/CP/開盤前多空)
+- 但「開盤前多空」 = `fut_pre_open_net` = 台指期等效大台 OI + 夜盤交易,
+  跟選擇權無關！讓用戶誤以為是選擇權的開盤前多空
+- Fix: R1 group 改成
+  - 「台指期」 colspan=2 (法人淨部位 + 開盤前多空)
+  - 「選擇權未平倉」 colspan=3 (CALL / PUT / CP)
+- R2 column 順序也調整: 開盤前多空 移到「台指期 法人淨部位」旁邊
+
+### Documented limitation (用戶問: 夜盤資料只到哪天)
+- fut_legal night session 涵蓋 **2023-05-04 ~ 2026-05-05** (732 dates)
+- **2020-2023/04 段 (~800 dates) 沒夜盤資料** — TAIFEX endpoint cutoff = 2023/05/05,
+  FinMind 也沒給歷史夜盤
+- 所以那段 `fut_pre_open_net` = `op_legal_net` (= 純日盤 OI 淨, 沒夜盤加成)
+- 證據: 2020-03-25 op_legal_net=50088 == fut_pre_open_net=50088
+- 2023-05-05 之後才會看到差值 (e.g. 2026-04-30: 差 1898 口 = 夜盤交易淨)
+
 ## [v0.10.4] - 2026-05-06 07:39
 
 ### 🎯 ALL CLEAN — 14 columns × 1536 trading days, 0 NULL

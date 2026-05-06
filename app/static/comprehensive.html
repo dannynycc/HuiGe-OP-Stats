@@ -119,10 +119,10 @@
       <col style="width:6%">    <!-- C: 加權指數 -->
       <col style="width:6%">    <!-- D: 台指期 日盤收盤 -->
       <col style="width:6%">    <!-- E: 台指期 法人淨部位 -->
-      <col style="width:6%">    <!-- F: CALL -->
-      <col style="width:6%">    <!-- G: PUT -->
-      <col style="width:6%">    <!-- H: CP -->
-      <col style="width:6%">    <!-- I: 開盤前多空 -->
+      <col style="width:6%">    <!-- F: 台指期 開盤前多空 -->
+      <col style="width:6%">    <!-- G: CALL -->
+      <col style="width:6%">    <!-- H: PUT -->
+      <col style="width:6%">    <!-- I: CP -->
       <col style="width:7%">    <!-- J: 股票期貨 -->
       <col style="width:5%">    <!-- K: 上市佔比 -->
       <col style="width:5%">    <!-- L: 上櫃佔比 -->
@@ -132,14 +132,18 @@
       <col style="width:5%">    <!-- P: 上櫃兆 -->
     </colgroup>
     <thead>
-      <!-- R1: group header. 加權指數 + 台指期日盤收盤 兩個都是「指數」性質 →
-           合併 group「指數」colspan=2; 台指期 法人淨部位 自己一格 -->
+      <!-- R1: group header.
+           「指數收盤」 colspan=2 (加權指數 + 台指期日盤收盤)
+           「台指期」 colspan=2 (法人淨部位 + 開盤前多空) — 開盤前多空是台指期等效大台
+                                                       OI+夜盤, 跟選擇權無關
+           「選擇權未平倉」 colspan=3 (CALL / PUT / CP)
+      -->
       <tr>
         <th></th>
         <th></th>
         <th colspan="2">指數收盤</th>
-        <th>台指期</th>
-        <th colspan="4">選擇權未平倉</th>
+        <th colspan="2">台指期</th>
+        <th colspan="3">選擇權未平倉</th>
         <th>股票期貨</th>
         <th colspan="2">融資餘額佔市值比</th>
         <th colspan="2">融資餘額</th>
@@ -152,10 +156,10 @@
         <th>加權指數</th>
         <th>台指期</th>
         <th>法人淨部位</th>
+        <th>開盤前多空</th>
         <th>法人買權CALL</th>
         <th>法人賣權PUT</th>
         <th>法人CP合計多空</th>
-        <th>開盤前多空</th>
         <th>法人淨部位</th>
         <th>上市</th>
         <th>上櫃</th>
@@ -274,10 +278,10 @@ async function load() {
       ${tdTwii(r.twii_close)}
       ${tdPlainInt(r.tx_close)}
       ${tdParenInt(r.op_legal_net)}
+      ${tdParenInt(r.fut_pre_open_net)}
       ${tdParenInt(r.op_call_net)}
       ${tdParenInt(r.op_put_net)}
       ${tdParenInt(r.op_cp_net)}
-      ${tdParenInt(r.fut_pre_open_net)}
       ${tdParenInt(r.stock_fut_legal_net)}
       ${tdPct(r.twse_margin_pct)}
       ${tdPct(r.tpex_margin_pct)}

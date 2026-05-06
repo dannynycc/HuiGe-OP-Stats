@@ -201,6 +201,14 @@ Excel 慣例。已驗證 14 個 cross-holiday absorbing dates 全部 day=30 nigh
 2. 自動 fix: derive pct / op_cp_net / mkt_cap interp / TWSE MI_MARGN backfill
 3. 0 NULL → exit 0, 任何 leftover → exit 1 + sample dates 列出
 
+### Caveat: fut_pre_open_net 對 2020-2023/04 段
+- 公式: `fut_pre_open_net = 日盤 OI net (大台等效) + 夜盤 net_lots`
+- 但 TAIFEX 夜盤 endpoint cutoff = **2023/05/05**, FinMind 也沒歷史夜盤
+- → 2020-2023/04 段 (~800 dates) `fut_pre_open_net` = `op_legal_net`
+  (= 純日盤 OI, 沒夜盤加成)
+- 看「綜合整理」view 那段「開盤前多空」 column 跟「台指期 法人淨部位」 一樣
+  是預期, 不是 bug
+
 ## 上市總市值 (twse_mkt_cap_chao) 資料策略 (v0.10.0 起)
 
 公開 endpoint `homeApi/mkt_cap` 只回最近 5 天 → 歷史靠下面組合補：
