@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.10.21] - 2026-05-06 13:30
+
+### Confidence audit (用戶: 對 DB 內容沒信心, 想建 fresh DB 比對)
+
+`scripts/audit_raw_vs_endpoint.py` — 抽 30 random dates 跨 2020-2025
+對 4 個 critical cells 全 fetch endpoint 比對:
+1. `credit_summary.twse_margin_balance`
+2. `credit_summary.tpex_margin_balance`
+3. `daily_summary.tx_close` (TX nearest-month)
+4. `op_legal` 個別 row (買權外資 OI net) — raw table spot check
+
+### Result: 30 dates × 4 cols = 120 checks, 0 mismatches ALL CLEAN
+
+跨年 sample (2020-03-09 ~ 2025-11-20) 全 match endpoint 真值. 不重建 fresh DB
+(30-60 min 太貴), 此 sample 已給 high confidence.
+
 ## [v0.10.20] - 2026-05-06 13:00
 
 ### Sweep 找到 9 個 stale margin (用戶 flag 8 dates 中 6 個確認 stale)
