@@ -83,7 +83,6 @@
     <button class="mode-btn active" data-mode="stacked">A · 上下雙圖</button>
     <button class="mode-btn"        data-mode="original">B · 純融資%</button>
     <button class="mode-btn"        data-mode="scatter">C · 散佈圖</button>
-    <button class="mode-btn"        data-mode="heatmap">D · 月份熱力圖</button>
   </div>
   <a href="/comprehensive" class="nav-btn">← 回綜合整理</a>
 </header>
@@ -164,6 +163,7 @@ function makeDualPanel(container, title, size, xs, idxData, pctData, idxColor, p
 
   const opts = {
     width: size.w, height: size.h,
+    legend: { show: false },  // 關 uPlot 內建 legend (我們在 header 下自繪)
     cursor: { drag: { x: true, y: false, setScale: true } },
     scales: {
       x: { time: true },
@@ -220,6 +220,7 @@ function renderOriginal() {
   const size = getPanelSize("original");
   const opts = {
     width: size.w, height: size.h,
+    legend: { show: false },  // 關 uPlot 內建 legend (我們在 header 下自繪)
     cursor: { drag: { x: true, y: false, setScale: true } },
     scales: { x: { time: true }, twse: { auto: true }, tpex: { auto: true } },
     axes: [
@@ -240,19 +241,6 @@ function renderOriginal() {
   const u = new uPlot(opts, [DATA.xs, DATA.twseMargin, DATA.tpexMargin], panel);
   attachWheelZoom(u, DATA.dataMin, DATA.dataMax);
   plots.push(u);
-}
-
-// 綠→黃→紅 三色階, ratio in [0,1]
-function colorScale(ratio) {
-  ratio = Math.max(0, Math.min(1, ratio));
-  const lerp = (a, b, t) => Math.round(a + (b - a) * t);
-  const G = [99, 190, 123], Y = [255, 235, 132], R = [248, 113, 113];
-  if (ratio <= 0.5) {
-    const t = ratio * 2;
-    return `rgb(${lerp(G[0],Y[0],t)},${lerp(G[1],Y[1],t)},${lerp(G[2],Y[2],t)})`;
-  }
-  const t = (ratio - 0.5) * 2;
-  return `rgb(${lerp(Y[0],R[0],t)},${lerp(Y[1],R[1],t)},${lerp(Y[2],R[2],t)})`;
 }
 
 function pearsonR(xs, ys) {
@@ -360,108 +348,16 @@ function renderScatter() {
                    size, DATA.otc, DATA.tpexMargin, COLOR.tpexMargin);
 }
 
-// Mode D: 月份熱力圖 — 年×月 grid, color = 該月 avg 融資%
-function mkCell(text, cssText, titleAttr) {
-  const e = document.createElement("div");
-  e.textContent = text;
-  if (cssText) e.style.cssText = cssText;
-  if (titleAttr) e.title = titleAttr;
-  return e;
-}
-
-function drawHeatmapPanel(container, title, size, dates, vals) {
-  const panel = document.createElement("div");
-  panel.className = "panel";
-  panel.style.width = size.w + "px";
-  panel.style.height = size.h + "px";
-  panel.style.padding = "26px 16px 14px 16px";
-  panel.style.overflow = "auto";
-
-  if (title) {
-    const t = document.createElement("div");
-    t.className = "panel-title"; t.textContent = title;
-    panel.appendChild(t);
-  }
-  const byYM = {};
-  for (let i = 0; i < dates.length; i++) {
-    if (vals[i] == null || !dates[i]) continue;
-    const ym = dates[i].slice(0, 7);
-    (byYM[ym] = byYM[ym] || []).push(vals[i]);
-  }
-  const monthAvg = {};
-  for (const ym in byYM) {
-    monthAvg[ym] = byYM[ym].reduce((a,b)=>a+b, 0) / byYM[ym].length;
-  }
-  const allVals = Object.values(monthAvg);
-  const mn = Math.min(...allVals), mx = Math.max(...allVals);
-  const yms = Object.keys(monthAvg).sort();
-  const years = [...new Set(yms.map(s => s.slice(0,4)))].sort();
-
-  const grid = document.createElement("div");
-  grid.style.display = "grid";
-  grid.style.gridTemplateColumns = "50px repeat(12, 1fr)";
-  grid.style.gap = "2px";
-  grid.style.fontSize = "11px";
-
-  grid.appendChild(mkCell(""));
-  for (let m = 1; m <= 12; m++) {
-    grid.appendChild(mkCell(`${m}月`, "text-align:center;color:#666;font-weight:600;padding:2px 0"));
-  }
-  for (const y of years) {
-    grid.appendChild(mkCell(y, "text-align:right;color:#666;padding:6px 6px 6px 0;font-weight:600"));
-    for (let m = 1; m <= 12; m++) {
-      const ym = `${y}-${String(m).padStart(2,"0")}`;
-      const v = monthAvg[ym];
-      if (v == null) {
-        grid.appendChild(mkCell("", "background:#f5f5f5;padding:6px 0"));
-      } else {
-        const ratio = (v - mn) / (mx - mn);
-        const bg = colorScale(ratio);
-        const fg = ratio > 0.6 ? "#fff" : "#000";
-        grid.appendChild(mkCell(v.toFixed(2)+"%",
-          `background:${bg};text-align:center;padding:6px 0;color:${fg};font-variant-numeric:tabular-nums`,
-          `${ym}: ${v.toFixed(4)}%`));
-      }
-    }
-  }
-  panel.appendChild(grid);
-
-  // 色階 legend (用 DOM 不用 innerHTML)
-  const legend = document.createElement("div");
-  legend.style.cssText = "margin-top:8px;display:flex;gap:6px;align-items:center;font-size:11px;color:#666";
-  legend.appendChild(mkCell(`${mn.toFixed(2)}% (低)`));
-  const swatch = document.createElement("span");
-  swatch.style.cssText = `display:inline-block;width:160px;height:10px;background:linear-gradient(to right,${colorScale(0)},${colorScale(0.5)},${colorScale(1)})`;
-  legend.appendChild(swatch);
-  legend.appendChild(mkCell(`${mx.toFixed(2)}% (高)`));
-  panel.appendChild(legend);
-
-  container.appendChild(panel);
-}
-
-function renderHeatmap() {
-  const area = document.getElementById("chartArea");
-  area.className = "layout-stacked";
-  area.innerHTML = "";
-  const size = getPanelSize("stacked");
-  drawHeatmapPanel(area, "上市: 月平均融資餘額佔市值比",
-                   size, DATA.dates, DATA.twseMargin);
-  drawHeatmapPanel(area, "上櫃: 月平均融資餘額佔市值比",
-                   size, DATA.dates, DATA.tpexMargin);
-}
-
 const RENDER = {
   stacked:  renderStacked,
   original: renderOriginal,
   scatter:  renderScatter,
-  heatmap:  renderHeatmap,
 };
 
 const LEGENDS = {
   stacked:  [["twii","加權指數 (虛)"], ["twseMargin","上市融資%"], ["otcIdx","OTC指數 (虛)"], ["tpexMargin","上櫃融資%"]],
   original: [["twseMargin","上市 TWSE"], ["tpexMargin","上櫃 TPEX"]],
   scatter:  [["twseMargin","上市點 (X=加權, Y=融資%)"], ["tpexMargin","上櫃點 (X=OTC, Y=融資%)"]],
-  heatmap:  [["twseMargin","上市月均"], ["tpexMargin","上櫃月均"]],
 };
 
 function renderLegend(mode) {
@@ -500,14 +396,13 @@ async function init() {
     document.getElementById("chartArea").textContent = "(無資料)";
     return;
   }
-  const dates      = rows.map(x => x.date);
   const xs         = rows.map(x => Math.floor(new Date(x.date+"T00:00:00").getTime()/1000));
   const twseMargin = rows.map(x => x.twse_margin_pct * 100);
   const tpexMargin = rows.map(x => x.tpex_margin_pct * 100);
   const twii       = rows.map(x => x.twii_close);
   const otc        = rows.map(x => x.tpex_index_close);
   DATA = {
-    xs, dates, twseMargin, tpexMargin, twii, otc,
+    xs, twseMargin, tpexMargin, twii, otc,
     dataMin: xs[0], dataMax: xs[xs.length-1],
   };
 

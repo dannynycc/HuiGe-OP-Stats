@@ -132,15 +132,15 @@ stop.bat    # 停掉
 - `http://localhost:8765/` — 主表「For X 開盤前看」(柴柴 6 列彙整)
 - `http://localhost:8765/comprehensive` — **綜合整理 view**：完整 timeseries
   table，復刻 Excel「綜合整理」 sheet（v0.9 起）
-- `http://localhost:8765/chart` — **融資餘額 + 指數 多 mode 走勢圖** (v0.10.41-43)
-  - 4 mode toggle (header button bar):
+- `http://localhost:8765/chart` — **融資餘額 + 指數 多 mode 走勢圖** (v0.10.41-45)
+  - 3 mode toggle (header button bar):
     - **A · 上下雙圖** (default): 上 panel 加權指數+上市%, 下 panel OTC+上櫃% (各自 dual axis)
     - **B · 純融資%**: 兩條 % line dual axis (= v0.10.41 base, 不含指數)
-    - **C · 散佈圖**: 兩 panel scatter, X=指數 Y=融資%, 點 alpha 由淡(2020)→濃(2026), 全段 Pearson r
-    - **D · 月份熱力圖**: 年×月 grid, color = 該月平均融資%, 綠→黃→紅 色階, 上下兩 panel
+    - **C · 散佈圖**: 兩 panel scatter, X=指數 Y=融資%, 點 alpha 由淡(2020)→濃(2026),
+      全段「同步度」 (Pearson r) 白話解讀 (v0.10.44)
   - 互動 (line modes A/B): 滑鼠滾輪 zoom, 拖曳 pan, 雙擊 reset
   - **zoom-out 上限 = 全部 data 跨度** (v0.10.42, clamp 到 [xs[0], xs[last]])
-  - 線圖用 uPlot CDN, scatter 用 vanilla canvas, heatmap 用 div grid
+  - 線圖用 uPlot CDN, scatter 用 vanilla canvas
 
 ### Refresh 行為 (v0.10.27 起 catch-up mode, v0.10.37 統一兩 view)
 - 兩 view (主表 / 綜合整理) Refresh button 行為**完全一致**:

@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.10.45] - 2026-05-06 23:36
+
+### Removed: D 月份熱力圖 mode + Fixed: panel 底部 legend 被裁
+
+- 用戶: 「D 月份熱力圖可以拿掉」
+- 砍掉 mode D button + `renderHeatmap` + `drawHeatmapPanel` + `mkCell` helper +
+  `colorScale` helper (= heatmap-only)
+- DATA.dates 也順手清 (= 只 heatmap 用過)
+- 留 3 個 mode: A 上下雙圖 / B 純融資% / C 散佈圖
+
+### Fixed: 底部 legend 被裁 (用戶: 「Time-- OTC指數 上櫃融資% 字下方被裁一半」)
+- uPlot 預設會在 panel 底部 render 內建 legend, 但 panel 高度固定 → legend 跑出
+  panel 邊界被 cut
+- 我們已經在 header 下面自寫了 `.legend` div, 不需要 uPlot 的內建 legend
+- `legend: { show: false }` in opts (apply 到 stacked + original)
+
 ## [v0.10.44] - 2026-05-06 18:45
 
 ### Fixed: Scatter 圖 jargon 改白話

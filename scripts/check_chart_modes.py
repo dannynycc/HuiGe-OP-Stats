@@ -2,7 +2,7 @@
 import asyncio
 from playwright.async_api import async_playwright
 
-MODES = ["stacked", "original", "scatter", "heatmap"]
+MODES = ["stacked", "original", "scatter"]
 
 async def main():
     async with async_playwright() as p:
