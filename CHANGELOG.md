@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.10.7] - 2026-05-06 08:00
+
+### Fixed (用戶: title 有些會超框)
+- thead `<th>` `white-space: normal` + `line-height: 1.2` + `word-break: keep-all`
+  允許長 title 折行 (數字 cell 在 `<td>` 仍 nowrap, 不影響資料 column)
+- col widths 重排:
+  - 5 / 6 / 5 / 5 / 6 / 6 / **7 / 7 / 7** / 6 / 6 / 5×6 (= 96%)
+  - 「法人買權CALL」「法人賣權PUT」「法人CP合計多空」三長 title col 加大到 7%
+
+### Verified across viewports (Playwright)
+- 1366 / 1600 / 1920 px viewport 全部 0 overflow (scrollW <= offsetW)
+- 17 cols 全 fit, 沒 title 超框
+
 ## [v0.10.6] - 2026-05-06 07:55
 
 ### Added (用戶: 選擇權未平倉的開盤前多空還是要有, historical 留空)

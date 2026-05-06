@@ -89,6 +89,11 @@
     border-bottom: 1px solid #888;
     position: sticky;
     z-index: 3;
+    /* 允許 title 折行 (數字 cell 在 td 仍是 nowrap) */
+    white-space: normal;
+    line-height: 1.2;
+    word-break: keep-all;       /* 中文不要斷字, 在空格處或邊界 break */
+    overflow-wrap: break-word;
   }
   table.zonghe thead tr:nth-child(1) th { top: 0; z-index: 4; }
   table.zonghe thead tr:nth-child(2) th {
@@ -114,17 +119,17 @@
 <div class="table-wrap">
   <table class="zonghe" id="zonghe">
     <colgroup>
-      <col style="width:6%">    <!-- A: For 開盤前看 -->
+      <col style="width:5%">    <!-- A: For 開盤前看 -->
       <col style="width:6%">    <!-- B: 前一日日盤Data -->
       <col style="width:5%">    <!-- C: 加權指數 -->
       <col style="width:5%">    <!-- D: 台指期 日盤收盤 -->
       <col style="width:6%">    <!-- E: 台指期 法人淨部位 -->
       <col style="width:6%">    <!-- F: 台指期 開盤前多空 -->
-      <col style="width:6%">    <!-- G: CALL -->
-      <col style="width:6%">    <!-- H: PUT -->
-      <col style="width:6%">    <!-- I: CP -->
+      <col style="width:7%">    <!-- G: 法人買權CALL — 較長 -->
+      <col style="width:7%">    <!-- H: 法人賣權PUT -->
+      <col style="width:7%">    <!-- I: 法人CP合計多空 — 最長 -->
       <col style="width:6%">    <!-- J: 選擇權 開盤前多空 -->
-      <col style="width:6%">    <!-- K: 股票期貨 -->
+      <col style="width:6%">    <!-- K: 股票期貨 法人淨部位 -->
       <col style="width:5%">    <!-- L: 上市佔比 -->
       <col style="width:5%">    <!-- M: 上櫃佔比 -->
       <col style="width:5%">    <!-- N: 上市億 -->
