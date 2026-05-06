@@ -1,5 +1,20 @@
 # Changelog
 
+## [v0.10.37] - 2026-05-06 16:50
+
+### Fixed (用戶: 兩 view Refresh 行為應一致)
+- 之前: 主表 doRefresh 帶 `?date=<dataDate>` 走 single-day refresh
+        綜合整理 doRefresh 不帶 date 走 catch_up_refresh
+- 兩 API path 不同 → 行為 + status format 不同 → user 困惑
+- Fix: 主表 doRefresh **拿掉 date param**, 都走 catch_up
+  - 兩 view 都 hit `POST /api/refresh` (no params)
+  - 都解析 `r.mode === "catch_up"` 同樣 status 顯示
+- 結果: 兩 view 點 Refresh 行為完全一致
+
+### 結合 v0.10.36
+- catch_up always include today → 點 Refresh 一定 refetch today data
+- v0.10.37 unify: 兩 view 同 endpoint, 同 logic, 同 status format
+
 ## [v0.10.36] - 2026-05-06 16:30
 
 ### Fixed (用戶: 綜合整理 Refresh 完全不 refresh, 顯示 「DB already up-to-date」)

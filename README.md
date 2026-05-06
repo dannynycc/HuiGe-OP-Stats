@@ -133,10 +133,12 @@ stop.bat    # 停掉
 - `http://localhost:8765/comprehensive` — **綜合整理 view**：完整 timeseries
   table，復刻 Excel「綜合整理」 sheet（v0.9 起）
 
-### Refresh 行為 (v0.10.27 起 catch-up mode)
-- `POST /api/refresh` 預設 `catch_up=true`: 自動補 last_db_date+1 ~ today 所有 weekdays
-- `?date=YYYY-MM-DD` 指定單日 (override catch_up)
-- `?catch_up=false` 關掉只抓今天
+### Refresh 行為 (v0.10.27 起 catch-up mode, v0.10.37 統一兩 view)
+- 兩 view (主表 / 綜合整理) Refresh button 行為**完全一致**:
+  - 都 `POST /api/refresh` (no date param)
+  - catch_up_refresh: 補 last_db_date+1 ~ today 所有 weekdays
+  - **always include today** (= today data evolving, 一定 refetch)
+- API 仍保留 `?date=YYYY-MM-DD` (= override single-day) + `?catch_up=false` 給 backend testing
 - 三層正確性防護:
   1. Endpoint `actual_date == target` 防 stale (year-bug guard)
   2. Row count sanity: op=30 / fut=73 才算完整
