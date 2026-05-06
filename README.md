@@ -137,10 +137,12 @@ stop.bat    # 停掉
 - `http://localhost:8765/chart` — **走勢圖 (Category dropdown + multi-mode)** (v0.10.41-46)
   - **Category dropdown** (v0.10.46):
     - `融資餘額佔市值比 + 指數` (default, 含 A/B/C mode bar)
-    - `股票期貨 法人淨部位` (3 panel stacked, v0.10.47):
-      - 上: 股期法人淨部位 (口, 紫線 + 0 線)
-      - 中: 台指期 近月收盤 (點, 紅線)
-      - 下: 台指期 - 加權指數 價差 (點, 橘線 + 0 線, > 0 升水/< 0 貼水)
+    - `股票期貨 法人淨部位` (2 dual-axis panel + cursor/zoom 同步, v0.10.50):
+      - **Panel 1**: 股期淨部位 (左軸 紫實線, 口) + 台指期 (右軸 灰虛線, 點)
+      - **Panel 2**: 期現價差 = 台指期 − 加權 (左軸 翠綠實線, 點) + 台指期 (右軸 灰虛線, 點)
+      - 兩 panel 共用同一條台指期 reference (灰虛, 弱化避免搶主資料)
+      - **probe 同步**: hover 任一 panel 的 cursor 垂直線, 另一 panel 同步顯示
+      - **zoom 同步**: wheel zoom / drag 框選 zoom / 雙擊 reset 都跨 panel 同步
   - 融資 category 下 3 mode toggle (header button bar):
     - **A · 上下雙圖** (default): 上 panel 加權指數+上市%, 下 panel OTC+上櫃% (各自 dual axis)
     - **B · 純融資%**: 兩條 % line dual axis (= v0.10.41 base, 不含指數)

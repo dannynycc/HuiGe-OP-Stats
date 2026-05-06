@@ -115,9 +115,9 @@ const COLOR = {
   twii:       "#991b1b",
   tpexMargin: "#2563eb",
   otcIdx:     "#1e3a8a",
-  stockFut:   "#7c3aed",  // 紫, 跟融資紅藍區分
-  txClose:    "#dc2626",  // 紅 (台指期/加權同 family — stock_fut category 內不衝突)
-  basis:      "#ea580c",  // 橘, 期現價差
+  stockFut:   "#7c3aed",  // 紫 (panel 1 主, 左軸)
+  basis:      "#059669",  // 翠綠 (panel 2 主, 左軸) — 跟 紫色 complementary, 跟 灰 對比強
+  txClose:    "#374151",  // 深灰 slate-700 (兩 panel 右軸 reference, dashed) — 看得清又不搶
 };
 
 let plots = [];   // 目前活著的 uPlot instances (resize 用)
@@ -140,10 +140,11 @@ function attachWheelZoom(plot, dataMin, dataMax) {
     if (newMin < dataMin) newMin = dataMin;
     if (newMax > dataMax) newMax = dataMax;
     if (newMin >= newMax) { newMin = dataMin; newMax = dataMax; }
-    plot.setScale("x", { min: newMin, max: newMax });
+    // Broadcast 給同 category 的 all panels (cursor.sync 不同步 setScale, 自己廣播)
+    for (const p of plots) p.setScale("x", { min: newMin, max: newMax });
   }, { passive: false });
   plot.over.addEventListener("dblclick", () => {
-    plot.setScale("x", { min: dataMin, max: dataMax });
+    for (const p of plots) p.setScale("x", { min: dataMin, max: dataMax });
   });
 }
 
@@ -362,8 +363,10 @@ function renderScatter() {
                    size, DATA.otc, DATA.tpexMargin, COLOR.tpexMargin);
 }
 
-// Generic 單軸 line panel (含 optional 0 reference line)
-function makeLinePanel(container, title, size, xs, ys, color, unit, withZero) {
+// 雙 Y 軸 panel + cursor sync (左軸 = 主資料 + 可選 0 線, 右軸 = 台指期參照)
+function makeStockFutPanel(container, title, size, xs, leftData, rightData,
+                           leftColor, rightColor, leftLabel, rightLabel,
+                           leftUnit, rightUnit, withLeftZero, syncKey) {
   const panel = document.createElement("div");
   panel.className = "panel";
   if (title) {
@@ -376,25 +379,38 @@ function makeLinePanel(container, title, size, xs, ys, color, unit, withZero) {
   const opts = {
     width: size.w, height: size.h,
     legend: { show: false },
-    cursor: { drag: { x: true, y: false, setScale: true } },
-    scales: { x: { time: true }, y: { auto: true } },
+    cursor: {
+      drag: { x: true, y: false, setScale: true },
+      // sync key 共用 → cursor 跨 panel 同步:
+      //   - vertical probe line (預設)
+      //   - setSeries (hover 該 series 連動 sibling)
+      //   - scales: ["x", null] → drag-frame zoom 也 sync x scale (y 不同 panel 不 sync)
+      sync: { key: syncKey, setSeries: true, scales: ["x", null] },
+    },
+    scales: { x: { time: true }, left: { auto: true }, right: { auto: true } },
     axes: [
       { values: xAxisVals },
-      { scale: "y", stroke: "#444", size: 80,
+      { scale: "left", stroke: leftColor, size: 80,
         values: (u, vs) => vs.map(v => v.toLocaleString("en-US", {maximumFractionDigits: 0})) },
+      { side: 1, scale: "right", stroke: rightColor, size: 70,
+        values: (u, vs) => vs.map(v => v.toLocaleString("en-US", {maximumFractionDigits: 0})),
+        grid: { show: false } },
     ],
     series: [
       {},
-      { label: title, scale: "y",
-        stroke: color, width: 1.3,
-        value: (u, v) => v == null ? ""
-          : v.toLocaleString("en-US", {maximumFractionDigits: 0}) + (unit ? " " + unit : "") },
+      { label: leftLabel, scale: "left", stroke: leftColor, width: 1.5,
+        value: (u, v) => v == null ? "" :
+          v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " " + leftUnit },
+      { label: rightLabel, scale: "right", stroke: rightColor, width: 1.3,
+        dash: [6, 3],   // 右軸台指期 = 參照線, 加粗 + 較密虛線確保看得清楚
+        value: (u, v) => v == null ? "" :
+          v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " " + rightUnit },
     ],
   };
-  if (withZero) {
+  if (withLeftZero) {
     opts.hooks = {
       drawAxes: [(u) => {
-        const yZero = u.valToPos(0, "y", true);
+        const yZero = u.valToPos(0, "left", true);
         if (yZero >= u.bbox.top && yZero <= u.bbox.top + u.bbox.height) {
           const ctx = u.ctx;
           ctx.save();
@@ -410,23 +426,34 @@ function makeLinePanel(container, title, size, xs, ys, color, unit, withZero) {
       }],
     };
   }
-  const u = new uPlot(opts, [xs, ys], panel);
+  const u = new uPlot(opts, [xs, leftData, rightData], panel);
   attachWheelZoom(u, DATA.dataMinAll, DATA.dataMaxAll);
   plots.push(u);
 }
 
-// Category: stock_fut — 3 stacked panel (股期淨部位 / 台指期收盤 / 期現價差)
+// Category: stock_fut — 2 dual-axis panel, cursor sync 跨 panel
 function renderStockFut() {
   const area = document.getElementById("chartArea");
   area.className = "layout-stacked";
   area.innerHTML = "";
-  const size = getPanelSize("stockfut3");
-  makeLinePanel(area, "股期法人淨部位 (口) — 外資+自營商, 0 線虛灰",
-    size, DATA.xsAll, DATA.stockFut, COLOR.stockFut, "口", true);
-  makeLinePanel(area, "台指期 近月收盤 (點)",
-    size, DATA.xsAll, DATA.txClose, COLOR.txClose, "點", false);
-  makeLinePanel(area, "台指期 - 加權指數 價差 (點) — > 0 升水, < 0 貼水",
-    size, DATA.xsAll, DATA.basis, COLOR.basis, "點", true);
+  const size = getPanelSize("stacked");          // 2 panel = (h-12)/2
+  const syncKey = "stockfut_sync";               // 同 key → 兩 panel cursor 同步
+  // Panel 1: 股期淨部位 (左, 紫實線) + 台指期 (右, 灰虛線 = 參照)
+  makeStockFutPanel(area,
+    "股期法人淨部位 (左軸 口, 紫實線) ↔ 台指期 近月收盤 (右軸 點, 灰虛線=參照) — 0 線虛灰=左軸",
+    size, DATA.xsAll, DATA.stockFut, DATA.txClose,
+    COLOR.stockFut, COLOR.txClose,
+    "股期淨部位", "台指期",
+    "口", "點",
+    true, syncKey);
+  // Panel 2: 期現價差 (左, 翠綠實線, 含 0 線) + 台指期 (右, 灰虛線 = 參照)
+  makeStockFutPanel(area,
+    "期現價差 = 台指期 - 加權 (左軸 點, 翠綠實線) ↔ 台指期 近月收盤 (右軸 點, 灰虛線=參照) — 0 線=升貼水分界",
+    size, DATA.xsAll, DATA.basis, DATA.txClose,
+    COLOR.basis, COLOR.txClose,
+    "期現價差", "台指期",
+    "點", "點",
+    true, syncKey);
 }
 
 const RENDER = {
@@ -440,9 +467,9 @@ const LEGENDS = {
   original: [["twseMargin","上市 TWSE"], ["tpexMargin","上櫃 TPEX"]],
   scatter:  [["twseMargin","上市點 (X=加權, Y=融資%)"], ["tpexMargin","上櫃點 (X=OTC, Y=融資%)"]],
   stockfut: [
-    ["stockFut", "股期法人淨部位 (口)"],
-    ["txClose",  "台指期 近月收盤 (點)"],
-    ["basis",    "期現價差 = 台指期 - 加權 (點)"],
+    ["stockFut", "股期淨部位 (上 panel 左軸, 口)"],
+    ["basis",    "期現價差 (下 panel 左軸, 點)"],
+    ["txClose",  "台指期 (兩 panel 右軸, 點)"],
   ],
 };
 

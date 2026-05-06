@@ -1,5 +1,43 @@
 # Changelog
 
+## [v0.10.50] - 2026-05-07 00:16
+
+### Stock_fut chart 改 2 dual-axis panel + cursor sync + zoom sync + 重配色
+
+- 用戶: 「股期 + 台指期 同一張 (左右軸)」, 「價差 + 台指期 同一張 (左右軸)」,
+  「probe 虛線同步」, 「zoom in/out 同步」, 「顏色不容易區分」
+- 從 3 panel single-axis → 2 panel dual-axis:
+  - **Panel 1** (上): 股期淨部位 (左軸 紫實線, 口) + 台指期 (右軸 灰虛線, 點)
+  - **Panel 2** (下): 期現價差 (左軸 翠綠實線, 點) + 台指期 (右軸 灰虛線, 點)
+  - 兩 panel 共用同一條 台指期 reference line, 用「中性灰 + 虛線」弱化避免搶
+    主題資料
+
+### Cursor 同步 (uPlot 內建 sync API)
+- `cursor.sync.key = "stockfut_sync"` 共用 → vertical probe line 跨 panel 一致
+- `cursor.sync.scales = ["x", null]` → drag-frame zoom 也 sync x scale
+  (y 各 panel 不同所以 null)
+- `cursor.sync.setSeries = true` → hover series 跨 panel 連動
+
+### Zoom 同步 (manual broadcast for wheel + dblclick)
+- `attachWheelZoom` 改: wheel zoom + 雙擊 reset 都 `for (const p of plots)` 廣播
+  setScale, 確保 wheel 也跨 panel 同步 (uPlot.cursor.sync 預設只覆蓋 cursor +
+  drag, wheel 不覆蓋, 所以自己 broadcast)
+- 副作用: 融資 stacked mode 也獲得 zoom sync (= 更一致 UX)
+
+### 重配色 (用戶: 顏色不容易區分)
+- 之前: stockFut 紫 / basis 橘 / txClose 紅 → panel 2 橘紅近色難分
+- 現在: stockFut 紫 #7c3aed / basis 翠綠 #059669 / txClose **深灰** #374151
+- 主資料 (左軸): 鮮明實線 (1.5px)
+- 參照線 (右軸 台指期 重複出現): 深灰 slate-700 + dashed [6,3] + 1.3px
+  → 看得清楚但不搶主資料 (用戶第一版反饋: 「淡到我幾乎看不到」 → 從 #6b7280
+  加深到 #374151 + 加粗 1.0→1.3px + 較密 dash)
+
+### Tech
+- `getPanelSize("stockfut3")` mode 拿掉 (= 不再有 3 panel 需求)
+- New `makeStockFutPanel(...)` helper, 接 left/right data + colors + sync key
+- `makeLinePanel` (v0.10.47) 拿掉 (= 不再用)
+- LEGENDS.stockfut: 3 entries 改成「上 panel 左軸/下 panel 左軸/兩 panel 右軸」
+
 ## [v0.10.49] - 2026-05-07 00:01
 
 ### Cleanup: 砍 ad-hoc debug screenshot scripts + .gitignore root *.png
