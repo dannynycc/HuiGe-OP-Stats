@@ -1,5 +1,28 @@
 # Changelog
 
+## [v0.10.36] - 2026-05-06 16:30
+
+### Fixed (用戶: 綜合整理 Refresh 完全不 refresh, 顯示 「DB already up-to-date」)
+
+#### Root cause
+- catch_up_refresh 邏輯: 列出 `last_db+1 ~ today` 缺的 weekdays
+- 如 last_db == today → target_dates empty → mode=no_op → 不 fetch endpoint
+- 但 today 的 data 是 evolving (盤中 partial / 14:30 後 day session / 5:00 後 night session / 信用 mkt_cap 不同 timing)
+- User 期待: click refresh **always** 對 today 重抓
+
+#### Fix
+- catch_up_refresh: **always include today_iso** in target_dates (if weekday)
+- 即使 last_db == today, today 仍會 refetch 一次
+
+#### Verified
+- Click refresh: 8.3 sec, status `INCOMPLETE (op=30/30, fut=70/73)` (= 14:30 前 fut 還沒全釋出)
+- 對 weekend (today is Sat/Sun): 仍 no_op (跳過, 因 endpoint 沒 weekend data)
+
+### 之前主表為什麼 work
+- 主表 doRefresh 帶 `?date=<dataDate>` query, API 走 single-day refresh (不 catch_up)
+- single-day 不 check last_db, 一定 fetch endpoint
+- 綜合整理 doRefresh 沒帶 date → 走 catch_up 預設
+
 ## [v0.10.35] - 2026-05-06 16:20
 
 ### UI: 綜合整理 header rearrange + 「For 開盤前看」 cell clickable

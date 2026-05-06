@@ -206,9 +206,15 @@ def catch_up_refresh(today: date | None = None) -> dict[str, Any]:
             target_dates.append(cursor.isoformat())
         cursor += timedelta(days=1)
 
+    # Always re-fetch today (today's data may still be evolving — partial release
+    # in trading hours, late-night sessions, late-arriving credit/mkt_cap, etc).
+    today_iso = today.isoformat()
+    if today.weekday() < 5 and today_iso not in target_dates:
+        target_dates.append(today_iso)
+
     if not target_dates:
         return {"mode": "no_op", "last_db": last_db, "today": today.isoformat(),
-                "message": "DB already up-to-date"}
+                "message": "DB already up-to-date (today is weekend)"}
 
     log.info("catch-up: %d weekdays from %s to %s",
              len(target_dates), target_dates[0], target_dates[-1])
