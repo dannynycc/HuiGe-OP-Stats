@@ -128,20 +128,31 @@ def main():
             issues.append(("margin_ratio", d, med * rows4[i]["twse_mkt_cap_chao"] * 10000, rows4[i]["twse_margin_amt_oku"]))
     print(f"margin outliers: {margin_outliers}")
 
-    # 5. Day-over-day margin jump > 5% (no fundamental reason)
+    # 5. Day-over-day margin jump > 5% AND TWII jump < 3% (= 不是市場大跌)
+    # 真實 market crash (武漢/2021台疫/2024日銀/2025關稅) margin 跟 TWII 同跌, 不算 bug
     print()
     print("=" * 60)
-    print("5. Day-over-day margin jump > 5%")
+    print("5. Margin jump > 5% but TWII jump < 3% (= 不是 market crash)")
     print("=" * 60)
+    # Build TWII map for cross-check
+    twii_map = {r["date"]: r["twii_close"] for r in rows}
     margin_jumps = 0
     for i in range(1, len(rows4)):
         prev = rows4[i - 1]["twse_margin_amt_oku"]
         cur = rows4[i]["twse_margin_amt_oku"]
-        if prev and cur and abs(cur - prev) / prev > 0.05:
-            print(f"  XX {rows4[i]['date']}: margin {prev:.2f}→{cur:.2f}億  {(cur-prev)/prev*100:+.1f}%")
-            margin_jumps += 1
-            issues.append(("margin_jump", rows4[i]["date"], prev, cur))
-    print(f"margin jumps: {margin_jumps}")
+        if not (prev and cur and abs(cur - prev) / prev > 0.05):
+            continue
+        # Cross-check TWII change same day
+        prev_tw = twii_map.get(rows4[i - 1]["date"])
+        cur_tw = twii_map.get(rows4[i]["date"])
+        if prev_tw and cur_tw:
+            twii_chg = abs(cur_tw - prev_tw) / prev_tw
+            if twii_chg < 0.03:
+                # margin big but TWII flat → real outlier
+                print(f"  XX {rows4[i]['date']}: margin {prev:.2f}→{cur:.2f}億 ({(cur-prev)/prev*100:+.1f}%) TWII {prev_tw:.0f}→{cur_tw:.0f} ({(cur_tw-prev_tw)/prev_tw*100:+.1f}%)")
+                margin_jumps += 1
+                issues.append(("margin_jump", rows4[i]["date"], prev, cur))
+    print(f"margin jumps (suspicious, not market crash): {margin_jumps}")
 
     print()
     print("=" * 60)

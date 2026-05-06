@@ -1,5 +1,47 @@
 # Changelog
 
+## [v0.10.20] - 2026-05-06 13:00
+
+### Sweep 找到 9 個 stale margin (用戶 flag 8 dates 中 6 個確認 stale)
+
+`scripts/sweep_margin_outliers.py` silent background 跑完 (log buffered 沒 flush
+但 process commit 進 DB):
+
+| date | stale DB | endpoint 真值 |
+|---|---|---|
+| 2024-02-16 | 1367 億 | 2477.88 億 |
+| 2024-03-19 | 1729 | 2720.07 |
+| 2024-05-13 | 1753 | 2895.75 |
+| 2024-06-03 | 1729 | 3012.38 |
+| 2024-12-03 | 2219 | 3241.54 |
+| 2025-02-21 | 2089 | 3217.84 |
+| (3 dates user 沒 flag) | | |
+
+= 用戶看到的 1367 / 1729 / 1753 / 2219 / 2089 都是 stale, sweep 修對.
+
+### v0.10.19 (前一個 push)
+- API 加 Cache-Control no-cache header 強制 browser fresh fetch
+- detect_outliers.py 加 method 4+5 (margin MAD-z + day-over-day)
+
+### Final audit (1535 dates)
+- Weekly anchor 0 mismatch
+- mkt_cap MAD-z 2 borderline (春節 ratio 短暫變動)
+- mkt_cap day-over-day 0
+- margin MAD-z 0
+- margin jump 2 (2020-03-13 武漢 / 2021-05-17 台疫, 真實 market crash 不修)
+- **TOTAL UNEXPECTED: 0**
+
+## [v0.10.19] - 2026-05-06 12:55
+
+### Fixed
+- API `/api/comprehensive` 加 Cache-Control no-cache headers
+- 用戶 Ctrl+Shift+R 還看到 stale 因 browser cache, 加 header 強制 fresh fetch
+
+### Improved detect_outliers.py
+- Method 4: margin/mkt_cap ratio MAD-z (rolling 21-day, 5σ)
+- Method 5: margin day-over-day jump > 5% **but TWII < 3%**
+  (區別「真實 market crash」 vs 「真 outlier」)
+
 ## [v0.10.18] - 2026-05-06 14:15
 
 ### 5 個 changes 集中 push (前面 v0.10.17 push 的是 hover/settlement 顏色)
