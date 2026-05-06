@@ -188,33 +188,68 @@ async function loadView(viewDate) {
   }
 }
 
+// 白話 refresh status — user-facing 訊息, 不用 jargon
+function formatRefreshStatus(r) {
+  if (r.mode === "catch_up") {
+    const results = r.results || [];
+    if (results.length === 1) {
+      const x = results[0];
+      const date = x.target_date;
+      if (x.status && x.status.startsWith("ok")) {
+        return `${date} 抓完 ✓`;
+      }
+      if (x.status && x.status.startsWith("INCOMPLETE")) {
+        // 解析 "INCOMPLETE (op=30/30, fut=70/73)" 取出數字
+        const m = x.status.match(/op=(\d+)\/(\d+).*fut=(\d+)\/(\d+)/);
+        if (m) {
+          return `${date} 資料還沒收完 (期貨 ${m[3]}/${m[4]}) — 等 14:30 收盤後再按一次`;
+        }
+        return `${date} 資料還沒收完 — 等 14:30 收盤後再按一次`;
+      }
+      if (x.status && x.status.includes("skipped")) {
+        return `${date} endpoint 還沒釋出 (假日 / 盤前太早)`;
+      }
+      return `${date}: ${x.status || "(未知)"}`;
+    }
+    // 多 dates
+    const ok = results.filter(x => x.status && x.status.startsWith("ok")).length;
+    const inc = results.filter(x => x.status && x.status.startsWith("INCOMPLETE")).length;
+    const skip = results.filter(x => x.status && x.status.includes("skipped")).length;
+    const parts = [];
+    if (ok) parts.push(`${ok} 天抓完 ✓`);
+    if (inc) parts.push(`${inc} 天資料還沒齊`);
+    if (skip) parts.push(`${skip} 天跳過 (假日)`);
+    return parts.join(", ") || "完成";
+  }
+  if (r.mode === "no_op") {
+    return r.message || "資料已是最新";
+  }
+  if (r.ok) {
+    return `${r.target_date} 抓完 ✓ (${r.elapsed_sec}s)`;
+  }
+  return `失敗: ${(r.errors || []).join("; ") || "未知"}`;
+}
+function getRefreshSeverity(r) {
+  if (r.mode === "catch_up") {
+    const inc = (r.results || []).filter(x => x.status && x.status.startsWith("INCOMPLETE")).length;
+    return inc ? "err" : "ok";
+  }
+  if (r.ok || r.mode === "no_op") return "ok";
+  return "err";
+}
+
 async function doRefresh() {
   const btn = $("#btnRefresh"); btn.disabled = true;
-  setStatus("Refreshing...");
+  // Show spinner + "抓取中" text
+  const stat = $("#status");
+  stat.innerHTML = '<span class="spinner"></span>抓取資料中…';
+  stat.className = "";
   try {
-    // Always go catch-up mode (= 補缺漏 + 重抓 today). Both views (主表 /
-    // 綜合整理) hit same API, same behavior, same status format.
     const viewDate = $("#viewDate").value;
     const r = await fetch("/api/refresh", { method: "POST" }).then(r => r.json());
     // catch-up mode response: { mode: 'catch_up', results: [...], outlier_audit: [...] }
     // single-day response: { ok, target_date, elapsed_sec, errors }
-    if (r.mode === "catch_up") {
-      const ok = r.results.filter(x => x.status && x.status.startsWith("ok")).length;
-      const inc = r.results.filter(x => x.status && x.status.startsWith("INCOMPLETE")).length;
-      const skip = r.results.filter(x => x.status && x.status.includes("skipped")).length;
-      const conflicts = r.results.reduce((s, x) => s + (x.conflicts || []).length, 0);
-      const outliers = (r.outlier_audit || []).length;
-      let msg = `Catch-up: ${ok} ok, ${inc} incomplete, ${skip} skipped`;
-      if (conflicts) msg += `, ${conflicts} conflicts`;
-      if (outliers) msg += `, ${outliers} outliers`;
-      setStatus(msg, inc || conflicts || outliers ? "err" : "ok");
-    } else if (r.mode === "no_op") {
-      setStatus(r.message || "DB up-to-date", "ok");
-    } else if (r.ok) {
-      setStatus(`Refresh OK (data ${r.target_date}, ${r.elapsed_sec}s)`, "ok");
-    } else {
-      setStatus(`Refresh 失敗: ${(r.errors || []).join("; ")}`, "err");
-    }
+    setStatus(formatRefreshStatus(r), getRefreshSeverity(r));
     await loadView(viewDate);
   } catch (e) {
     setStatus(`Refresh 失敗: ${e.message}`, "err");

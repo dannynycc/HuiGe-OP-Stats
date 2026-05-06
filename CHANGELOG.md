@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.10.38] - 2026-05-06 17:00
+
+### Fixed (用戶: Catch-up: 0 ok, 1 incomplete, 0 skipped 這啥)
+- 之前 status 是 jargon: `Catch-up: N ok, N incomplete, N skipped`
+- 改白話:
+  - 1 dates incomplete: `2026-05-06 資料還沒收完 (期貨 70/73) — 等 14:30 收盤後再按一次`
+  - 1 dates ok: `2026-05-06 抓完 ✓`
+  - 1 dates skipped: `2026-05-06 endpoint 還沒釋出 (假日 / 盤前太早)`
+  - 多 dates: `2 天抓完 ✓, 1 天資料還沒齊`
+- 兩 view 都用 `formatRefreshStatus()` 同樣 logic
+
+### Added (用戶: refresh 時轉圈圈圖示)
+- CSS `.spinner` (CSS keyframes spin animation, 14x14 px)
+- doRefresh 開始時顯示「轉圈 + 抓取資料中…」
+- 跑完替換成 status text
+
 ## [v0.10.37] - 2026-05-06 16:50
 
 ### Fixed (用戶: 兩 view Refresh 行為應一致)

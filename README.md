@@ -139,6 +139,8 @@ stop.bat    # 停掉
   - catch_up_refresh: 補 last_db_date+1 ~ today 所有 weekdays
   - **always include today** (= today data evolving, 一定 refetch)
 - API 仍保留 `?date=YYYY-MM-DD` (= override single-day) + `?catch_up=false` 給 backend testing
+- UI: 跑時轉圈 spinner + 「抓取資料中…」 (v0.10.38)
+- Status 白話訊息 (v0.10.38): 「資料還沒收完 (期貨 70/73) — 等 14:30 收盤後再按一次」 etc.
 - 三層正確性防護:
   1. Endpoint `actual_date == target` 防 stale (year-bug guard)
   2. Row count sanity: op=30 / fut=73 才算完整

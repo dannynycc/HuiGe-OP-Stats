@@ -51,6 +51,18 @@
     font-weight: 600; font-size: 13px;
   }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* 轉圈 spinner — refresh 跑時顯示 */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid #cbd5e1;
+    border-top-color: #2c5aa0;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   /* nav-btn 切換不同 view (主表 vs 綜合整理) — 風格區別於 refresh 按鈕 */
   .nav-btn {
     display: inline-block;

@@ -114,6 +114,19 @@
   /* col widths via <colgroup> — 確保 group 下的 上市/上櫃 sub-col 等寬 */
   table.zonghe { table-layout: fixed; }
 
+  /* 轉圈 spinner — refresh 跑時顯示 */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid #cbd5e1;
+    border-top-color: #2c5aa0;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   /* nav-btn 切回主表, 跟 index.html 同樣式統一視覺語言 */
   .nav-btn {
     display: inline-block;
@@ -375,26 +388,45 @@ async function load() {
 window.addEventListener("resize", syncStickyOffset);
 load();
 
+// 白話 refresh status (= 跟主表 app.js 相同 logic, 但 inline 對 self-contained)
+function formatRefreshStatus(r) {
+  if (r.mode === "catch_up") {
+    const results = r.results || [];
+    if (results.length === 1) {
+      const x = results[0];
+      const date = x.target_date;
+      if (x.status && x.status.startsWith("ok")) return `${date} 抓完 ✓`;
+      if (x.status && x.status.startsWith("INCOMPLETE")) {
+        const m = x.status.match(/op=(\d+)\/(\d+).*fut=(\d+)\/(\d+)/);
+        if (m) return `${date} 資料還沒收完 (期貨 ${m[3]}/${m[4]}) — 等 14:30 收盤後再按一次`;
+        return `${date} 資料還沒收完 — 等 14:30 收盤後再按一次`;
+      }
+      if (x.status && x.status.includes("skipped")) return `${date} endpoint 還沒釋出 (假日 / 盤前太早)`;
+      return `${date}: ${x.status || "(未知)"}`;
+    }
+    const ok = results.filter(x => x.status && x.status.startsWith("ok")).length;
+    const inc = results.filter(x => x.status && x.status.startsWith("INCOMPLETE")).length;
+    const skip = results.filter(x => x.status && x.status.includes("skipped")).length;
+    const parts = [];
+    if (ok) parts.push(`${ok} 天抓完 ✓`);
+    if (inc) parts.push(`${inc} 天資料還沒齊`);
+    if (skip) parts.push(`${skip} 天跳過 (假日)`);
+    return parts.join(", ") || "完成";
+  }
+  if (r.mode === "no_op") return r.message || "資料已是最新";
+  if (r.ok) return `${r.target_date} 抓完 ✓ (${r.elapsed_sec}s)`;
+  return `失敗: ${(r.errors || []).join("; ") || "未知"}`;
+}
+
 // Refresh button — same logic as 主表's doRefresh
 async function doRefresh() {
   const btn = document.getElementById("btnRefresh");
   const stat = document.getElementById("status");
   btn.disabled = true;
-  stat.textContent = "Refreshing...";
+  stat.innerHTML = '<span class="spinner"></span>抓取資料中…';
   try {
     const r = await fetch("/api/refresh", { method: "POST" }).then(r => r.json());
-    if (r.mode === "catch_up") {
-      const ok = r.results.filter(x => x.status && x.status.startsWith("ok")).length;
-      const inc = r.results.filter(x => x.status && x.status.startsWith("INCOMPLETE")).length;
-      const skip = r.results.filter(x => x.status && x.status.includes("skipped")).length;
-      stat.textContent = `Catch-up: ${ok} ok, ${inc} incomplete, ${skip} skipped`;
-    } else if (r.mode === "no_op") {
-      stat.textContent = r.message || "DB up-to-date";
-    } else if (r.ok) {
-      stat.textContent = `Refresh OK (${r.target_date}, ${r.elapsed_sec}s)`;
-    } else {
-      stat.textContent = `失敗: ${(r.errors || []).join("; ")}`;
-    }
+    stat.textContent = formatRefreshStatus(r);
     // Reload comprehensive table after refresh — single source of truth (DB) updated
     await load();
   } catch (e) {
