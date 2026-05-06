@@ -1,5 +1,34 @@
 # Changelog
 
+## [v0.10.13] - 2026-05-06 12:10
+
+### 用戶要求 deeper audit (含 refresh) — 找到 2 個 bug
+
+#### Bug #1: refresh wipe twii_close + mkt_cap_source ⚠️
+- 之前 refresh 寫入 daily_summary 的 `cols` list 沒含 `twii_close` 跟 `mkt_cap_source`
+- SQLite `INSERT OR REPLACE` wipe 沒列出的 columns → refresh 後變 NULL
+- 用戶下次按 refresh 馬上失去 加權指數 + mkt_cap_source flag
+- **驗證**: refresh(2026-05-05) before twii=40769.29, after twii=NULL
+- Fix: `cols` list 加 `twii_close` + `mkt_cap_source`, summary 加 carry-over
+- **Bonus discovery**: TWSE FMTQIK endpoint (`fetch_turnover` 已 return) 自帶
+  `twii_close`, 改成優先用它, 不依賴 FinMind quota
+
+#### Bug #2: mkt_cap_source 永遠 None 對 official mkt_cap
+- _post_refresh_aggregate 只 set `'interp'` 對 NULL mkt_cap
+- 對 5/5 / 5/4 等 official mkt_cap 從不 set source → 永 NULL
+- Fix: write_to_db 對 official mkt_cap 直接 set `'official'`
+
+### Idempotency verified
+- refresh(2026-05-05) 跑 2 次, 14 cols 全 unchanged
+- refresh(2026-05-04) historical date 也 idempotent (pct float rounding ~1e-15
+  雜訊不算 bug)
+
+### Endpoint year-bug audit
+- TWSE MI_MARGN: honor historical date ✓
+- TWSE FMTQIK: honor historical + 自帶 TWII close ✓
+- TWSE homeApi/mkt_cap: 5-day window only (v0.10.12 加 7-day guard)
+- TPEX 3 endpoints: 全 honor historical ✓
+
 ## [v0.10.12] - 2026-05-06 11:50
 
 ### 用戶要求 full audit 找漏的 bug — 找到 1 個

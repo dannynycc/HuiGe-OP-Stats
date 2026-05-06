@@ -266,20 +266,21 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
             tpex_margin_thousand, tpex_turnover, tpex_mkt_cap_million,
         ))
 
-        # TWII close — write directly to daily_summary (not via aggregate logic)
-        twii_payload = results.get("twii_close") or {}
-        twii_v = twii_payload.get("twii_close")
-        if twii_v is not None:
-            con.execute(
-                """INSERT INTO daily_summary (date, twii_close) VALUES (?, ?)
-                   ON CONFLICT(date) DO UPDATE SET twii_close = excluded.twii_close""",
-                (date_dash, twii_v),
-            )
-
-        # daily_summary aggregate row — merge instead of overwrite, so a fresh
-        # refresh that can't get tx_close (fut_price endpoint = today only) will
-        # not blank out a value previously imported from Excel.
+        # daily_summary aggregate row — merge instead of overwrite. Critical:
+        # SQLite INSERT OR REPLACE wipes ALL columns not in the cols list, so
+        # twii_close / mkt_cap_source must be IN the cols list with carry-over,
+        # otherwise refresh() destroys those fields each time.
         summary = compute_daily_summary(date_dash, results)
+        # TWII: prefer TWSE FMTQIK (in fetch_turnover payload), fall back to FinMind
+        twii_v = (results.get("twse_turnover") or {}).get("twii_close")
+        if twii_v is None:
+            twii_v = (results.get("twii_close") or {}).get("twii_close")
+        summary["twii_close"] = twii_v
+        # mkt_cap_source: 'official' if we just got it from homeApi, else None
+        # (post-aggregate may set 'interp' after this write)
+        if summary.get("twse_mkt_cap_chao") is not None:
+            summary["mkt_cap_source"] = "official"
+
         existing = con.execute(
             "SELECT * FROM daily_summary WHERE date = ?", (date_dash,)
         ).fetchone()
@@ -287,7 +288,8 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
                 "op_pre_open_cp_net", "fut_pre_open_net", "stock_fut_legal_net",
                 "twse_margin_pct", "tpex_margin_pct",
                 "twse_margin_amt_oku", "tpex_margin_amt_oku",
-                "twse_mkt_cap_chao", "tpex_mkt_cap_chao"]
+                "twse_mkt_cap_chao", "tpex_mkt_cap_chao",
+                "twii_close", "mkt_cap_source"]
         merged = {}
         for c in cols:
             new_val = summary.get(c)
