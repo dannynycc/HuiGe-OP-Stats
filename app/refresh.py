@@ -3,12 +3,35 @@ from __future__ import annotations
 import json
 import logging
 import time
+import requests
+import urllib3
 from datetime import datetime, date, timedelta
 from typing import Any
 from .db import connect, init_db
 from .scrapers import taifex, twse, tpex
 
 log = logging.getLogger(__name__)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+def _fetch_twii(target_date: str) -> dict[str, Any]:
+    """加權指數 (TAIEX) close from FinMind TaiwanStockPrice.
+
+    refresh source list (12 endpoints) doesn't include TWII because TWSE's own
+    MI_5MINS_HIST has WAF rate-limit issues. We use FinMind which is stable.
+    """
+    r = requests.get(
+        "https://api.finmindtrade.com/api/v4/data",
+        params={"dataset": "TaiwanStockPrice", "data_id": "TAIEX",
+                "start_date": target_date, "end_date": target_date},
+        timeout=20, verify=False,
+    )
+    j = r.json()
+    rows = j.get("data") or []
+    for row in rows:
+        if row.get("date") == target_date and row.get("close") is not None:
+            return {"actual_date": target_date, "twii_close": float(row["close"])}
+    return {"actual_date": None, "twii_close": None}
 
 
 def _slash(date_dash: str) -> str:
@@ -55,6 +78,7 @@ def refresh(target_date: str | None = None) -> dict[str, Any]:
     safe("tpex_credit", tpex.fetch_credit_summary, target_date)
     safe("tpex_market_stats", tpex.fetch_market_stats, target_date)
     safe("tpex_highlight", tpex.fetch_highlight, target_date)
+    safe("twii_close", _fetch_twii, target_date)
 
     write_to_db(target_date, results)
 
@@ -241,6 +265,16 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
             twse_margin_thousand, twse_turnover, twse_mkt_cap_oku,
             tpex_margin_thousand, tpex_turnover, tpex_mkt_cap_million,
         ))
+
+        # TWII close — write directly to daily_summary (not via aggregate logic)
+        twii_payload = results.get("twii_close") or {}
+        twii_v = twii_payload.get("twii_close")
+        if twii_v is not None:
+            con.execute(
+                """INSERT INTO daily_summary (date, twii_close) VALUES (?, ?)
+                   ON CONFLICT(date) DO UPDATE SET twii_close = excluded.twii_close""",
+                (date_dash, twii_v),
+            )
 
         # daily_summary aggregate row — merge instead of overwrite, so a fresh
         # refresh that can't get tx_close (fut_price endpoint = today only) will

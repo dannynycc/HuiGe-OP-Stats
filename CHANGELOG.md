@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.10.10] - 2026-05-06 11:00
+
+### Fixed (用戶: 2026/5/6 加權指數空, 早上 refresh 過了還是空)
+
+#### Root cause
+- refresh.py 12 source 沒含 TWII
+- TWII 是 v0.9.7 後 backfill 補的, 用 FinMind TaiwanStockPrice TAIEX
+- 用戶 5/6 早上 refresh 5/5 → 12 source 跑完, 沒抓 TWII → 5/5 twii_close=NULL
+
+#### Fix
+- `app/refresh.py` 加 `_fetch_twii(target_date)` (FinMind TaiwanStockPrice TAIEX)
+- `safe("twii_close", _fetch_twii, target_date)` 加進 refresh source list
+- `write_to_db` 加 logic 把 twii_close 寫進 daily_summary
+  (用 ON CONFLICT...UPDATE 避免覆蓋現有 row 的其他欄位)
+- Inline 補 5/5 twii=40769.29 (= 用戶看到的那天)
+
+驗證 _fetch_twii(2026-05-05) → 40769.29 ✓
+
 ## [v0.10.9] - 2026-05-06 10:45
 
 ### Reverted v0.10.8 (用戶: 我沒叫你改字體跟 title)
