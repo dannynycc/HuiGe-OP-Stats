@@ -96,14 +96,18 @@
     top: var(--r1-height, 22px);  /* JS measures real R1 height after render */
     z-index: 3;
   }
-  /* Excel has no zebra stripe — pure white. Hover only for navigation help. */
-  table.zonghe tbody tr:hover td { background: #fff7d6; }
+  /* Excel has no zebra stripe — pure white. Hover 淡藍 (區別於 settlement 黃) */
+  table.zonghe tbody tr:hover td { background: #DBEAFE; }   /* sky-200 light blue */
 
   /* Negative values get red — qualify selector to beat .zonghe td { color } (0,1,2) */
   table.zonghe td.neg { color: var(--neg-text); }
-  /* 電子選擇權 (TEO) 月選結算日 整 row 高亮淡黃, 區別 hover (淡黃→深黃) */
-  table.zonghe tbody tr.settlement td { background: #FFF8DC; }   /* cornsilk-ish */
-  table.zonghe tbody tr.settlement:hover td { background: #FFEFA0; }
+  /* 電子選擇權 (TEO) 月選結算日 — 比 cornsilk 更明顯的 amber */
+  table.zonghe tbody tr.settlement td { background: #FEF3C7; }   /* amber-100 */
+  /* settlement + hover: 黃底加深 + 上下藍邊框, 視覺保留 settlement 識別 */
+  table.zonghe tbody tr.settlement:hover td {
+    background: #FDE68A;   /* amber-200 deeper */
+    box-shadow: inset 0 2px 0 #2563EB, inset 0 -2px 0 #2563EB;
+  }
   /* col widths via <colgroup> — 確保 group 下的 上市/上櫃 sub-col 等寬 */
   table.zonghe { table-layout: fixed; }
 
