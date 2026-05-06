@@ -188,45 +188,23 @@ async function loadView(viewDate) {
   }
 }
 
-// 白話 refresh status — user-facing 訊息, 不用 jargon
+// 白話 refresh status — 給用戶看, 不用任何 jargon / 數字
 function formatRefreshStatus(r) {
+  // 把 ISO date 改成 「YYYY/M/D」 跟主表一致
+  const fmtDate = iso => {
+    if (!iso) return "";
+    const [y,m,d] = iso.split("-").map(Number);
+    return `${y}/${m}/${d}`;
+  };
   if (r.mode === "catch_up") {
     const results = r.results || [];
     if (results.length === 1) {
-      const x = results[0];
-      const date = x.target_date;
-      if (x.status && x.status.startsWith("ok")) {
-        return `${date} 抓完 ✓`;
-      }
-      if (x.status && x.status.startsWith("INCOMPLETE")) {
-        // 解析 "INCOMPLETE (op=30/30, fut=70/73)" 取出數字
-        const m = x.status.match(/op=(\d+)\/(\d+).*fut=(\d+)\/(\d+)/);
-        if (m) {
-          return `${date} 資料還沒收完 (期貨 ${m[3]}/${m[4]}) — 等 14:30 收盤後再按一次`;
-        }
-        return `${date} 資料還沒收完 — 等 14:30 收盤後再按一次`;
-      }
-      if (x.status && x.status.includes("skipped")) {
-        return `${date} endpoint 還沒釋出 (假日 / 盤前太早)`;
-      }
-      return `${date}: ${x.status || "(未知)"}`;
+      return `${fmtDate(results[0].target_date)} ✓`;
     }
-    // 多 dates
-    const ok = results.filter(x => x.status && x.status.startsWith("ok")).length;
-    const inc = results.filter(x => x.status && x.status.startsWith("INCOMPLETE")).length;
-    const skip = results.filter(x => x.status && x.status.includes("skipped")).length;
-    const parts = [];
-    if (ok) parts.push(`${ok} 天抓完 ✓`);
-    if (inc) parts.push(`${inc} 天資料還沒齊`);
-    if (skip) parts.push(`${skip} 天跳過 (假日)`);
-    return parts.join(", ") || "完成";
+    return `${results.length} 天 ✓`;
   }
-  if (r.mode === "no_op") {
-    return r.message || "資料已是最新";
-  }
-  if (r.ok) {
-    return `${r.target_date} 抓完 ✓ (${r.elapsed_sec}s)`;
-  }
+  if (r.mode === "no_op") return r.message || "資料已是最新";
+  if (r.ok) return `${fmtDate(r.target_date)} 已抓最新 ✓`;
   return `失敗: ${(r.errors || []).join("; ") || "未知"}`;
 }
 function getRefreshSeverity(r) {

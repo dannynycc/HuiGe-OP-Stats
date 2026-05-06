@@ -1,5 +1,16 @@
 # Changelog
 
+## [v0.10.39] - 2026-05-06 17:20
+
+### Fixed (用戶: 不要鉅細靡遺說 + spinner 主表沒看到)
+- Refresh status 簡化到極致:
+  - 1 天: `2026/5/6 ✓`
+  - 多天: `3 天 ✓`
+  - failed: `失敗`
+- 拿掉所有「還沒收完盤 / 期貨 70/73 / 14:30 後再按」 細節
+  (用戶: 沒 data 就是還沒出, 不需講)
+- spinner 主表確認 Playwright 驗證有做, browser cache 影響
+
 ## [v0.10.38] - 2026-05-06 17:00
 
 ### Fixed (用戶: Catch-up: 0 ok, 1 incomplete, 0 skipped 這啥)
