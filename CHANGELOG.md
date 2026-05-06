@@ -1,5 +1,32 @@
 # Changelog
 
+## [v0.10.16] - 2026-05-06 12:50
+
+### Added (用戶: refresh 時也要 trigger settlement check, 想 efficient 法)
+
+#### `_maybe_fetch_settlement_dates(target_date)` 加進 refresh
+- DB cache check first (PK index, ~0.8ms)
+- Cache miss → fetch TAIFEX endpoint, query 「target month + 6 個月 ahead」
+  一次 cache 多月 (settlement 一月 1 個, 規律)
+- **In-memory negative cache** (1 hr TTL): 對 endpoint return 0 rows 的月份
+  (= 未來月份 settlement 還沒釋出), 1 小時內不重打
+
+### Performance verified
+| 情境 | 耗時 |
+|---|---|
+| DB cached (歷史月份) | ~1.5ms |
+| Future month, first call (endpoint hit) | ~400ms |
+| Future month, re-call (neg-cached) | ~0.8ms |
+| Past month, never cached | ~400ms one-time |
+
+每天第 1 次 refresh 對 future month 多 ~400ms (settlement 未釋出),
+之後 neg-cache 零成本. 該月實際結算後 endpoint 有資料, 1 hr cache 過期
+重打就寫進 DB.
+
+### Refresh idempotency 仍保持
+- 已有 DB row 的月份, refresh 不會重打 endpoint
+- 連續 refresh 5/6 兩次, 第 2 次 settlement check 0.8ms
+
 ## [v0.10.15] - 2026-05-06 12:30
 
 ### Added (用戶: 標記電子選擇權月選結算日)

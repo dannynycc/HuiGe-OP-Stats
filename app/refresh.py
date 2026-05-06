@@ -13,6 +13,100 @@ from .scrapers import taifex, twse, tpex
 log = logging.getLogger(__name__)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Module-level negative cache (yyyymm -> last_attempt_ts) to skip re-fetching
+# settlement for future months that haven't released yet. 1-hour TTL.
+_SETTLEMENT_NEG_CACHE: dict[str, float] = {}
+
+
+def _maybe_fetch_settlement_dates(target_date: str) -> dict[str, Any]:
+    """Ensure TEO 月選 settlement dates for target_date's month are in DB.
+
+    Strategy: Only call TAIFEX endpoint if that month's settlement isn't
+    cached yet (1 endpoint call per month, not per refresh). DB lookup is
+    O(log n) PK index — instant, no need to optimize that further.
+
+    Why we need this: refresh writes daily_summary for target_date, and the
+    UI highlights settlement-day rows. If target's month settlement isn't in
+    DB, the highlight will be missing for that row when the user looks at
+    comprehensive view.
+    """
+    import datetime as _dt
+    try:
+        target = _dt.date.fromisoformat(target_date)
+    except ValueError:
+        return {"skipped": True, "reason": "bad target_date"}
+
+    yyyymm = f"{target.year:04d}{target.month:02d}"
+    with connect() as con:
+        cached = con.execute(
+            "SELECT 1 FROM option_settlement_dates WHERE contract_month = ? AND product = 'TEO' LIMIT 1",
+            (yyyymm,)
+        ).fetchone()
+    if cached:
+        return {"cached": True, "month": yyyymm}
+
+    # In-memory negative cache: avoid re-hitting endpoint every refresh for a
+    # future month that hasn't released settlement yet (endpoint returns 0 rows).
+    # 1-hour TTL — re-attempt after expiry in case settlement was just released.
+    import time as _t
+    cache_entry = _SETTLEMENT_NEG_CACHE.get(yyyymm)
+    if cache_entry and (_t.time() - cache_entry) < 3600:
+        return {"neg_cached": True, "month": yyyymm}
+
+    # Cache miss — fetch the month from TAIFEX. We over-query 6 months ahead
+    # to cache future months in one call (settlement happens 3rd Wed each month
+    # so future months may not have prices yet but date is known).
+    from io import StringIO
+    import pandas as pd
+    url = "https://www.taifex.com.tw/cht/5/optIndxFSP"
+    end_y, end_m = target.year, target.month + 6
+    while end_m > 12:
+        end_y += 1
+        end_m -= 12
+    payload = {
+        "start_year": str(target.year), "start_month": str(target.month),
+        "end_year": str(end_y), "end_month": str(end_m),
+        "commodityIds": "8",
+    }
+    r = requests.post(url, data=payload, headers={"User-Agent": UA, "Referer": url},
+                      timeout=30, verify=False)
+    try:
+        df = pd.read_html(StringIO(r.content.decode("utf-8", errors="replace")), flavor="lxml")[0]
+    except (ValueError, IndexError):
+        return {"fetched": True, "month": yyyymm, "rows_written": 0, "note": "no_table"}
+    if df.shape[1] < 2:
+        return {"fetched": True, "month": yyyymm, "rows_written": 0, "note": "empty_table"}
+    # Some response shapes: 3 cols (date/contract/price) or 2 cols (date/contract only)
+    df.columns = ["date", "contract"] + (["price"] if df.shape[1] >= 3 else [])
+    month_only = df[df["contract"].astype(str).str.match(r"^\d{6}$")]
+    n_written = 0
+    with connect() as con:
+        for _, row in month_only.iterrows():
+            iso = str(row["date"]).replace("/", "-")
+            contract = str(row["contract"])
+            price = None
+            if "price" in row:
+                p = row["price"]
+                if isinstance(p, str):
+                    price = float(p.replace(",", "")) if p not in ("-", "") else None
+                elif isinstance(p, (int, float)) and not (isinstance(p, float) and p != p):
+                    price = float(p)
+            con.execute(
+                """INSERT OR REPLACE INTO option_settlement_dates
+                   (date, product, contract_month, settlement_price)
+                   VALUES (?, 'TEO', ?, ?)""",
+                (iso, contract, price),
+            )
+            n_written += 1
+    if n_written == 0:
+        # Negative cache (1 hr TTL) — endpoint had nothing for this month
+        _SETTLEMENT_NEG_CACHE[yyyymm] = _t.time()
+    return {"fetched": True, "month": yyyymm, "rows_written": n_written}
+
+
+UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
+
 
 def _fetch_twii(target_date: str) -> dict[str, Any]:
     """加權指數 (TAIEX) close from FinMind TaiwanStockPrice.
@@ -79,6 +173,7 @@ def refresh(target_date: str | None = None) -> dict[str, Any]:
     safe("tpex_market_stats", tpex.fetch_market_stats, target_date)
     safe("tpex_highlight", tpex.fetch_highlight, target_date)
     safe("twii_close", _fetch_twii, target_date)
+    safe("settlement_dates", _maybe_fetch_settlement_dates, target_date)
 
     write_to_db(target_date, results)
 
