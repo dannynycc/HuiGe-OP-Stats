@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.10.28] - 2026-05-06 14:35
+
+### Fixed (用戶: 為什麼按 refresh 還要 Ctrl+F5)
+- doRefresh 對 catch_up response 沒 handle, status 顯示「失敗」誤導用戶
+  → 修: 解析 catch_up mode, 顯示 「N ok / N incomplete / N skipped」
+- 主表 doRefresh **已經** await loadView 自動 reload, 之前看似沒更新是因
+  status 顯示錯誤讓用戶以為 refresh 失敗
+
+### Added: 綜合整理 view 加 Refresh button
+- 之前只有主表有 button, 看綜合整理時要切回主表
+- 現在綜合整理 header 也有 Refresh button + status, 同 logic 自動 reload
+
 ## [v0.10.27] - 2026-05-06 14:20
 
 ### Added: Refresh catch-up mode + 多層正確性防護

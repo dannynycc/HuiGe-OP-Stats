@@ -127,7 +127,9 @@
 <header>
   <h1>綜合整理</h1>
   <span style="color:var(--muted)">柴柴 — 期交所法人部位彙整 ‧ 全部歷史</span>
-  <span style="margin-left:auto"><a href="/" class="nav-btn">← 回主表 (For X 開盤前看)</a></span>
+  <button id="btnRefresh" style="background:#2c5aa0;color:#fff;border:0;padding:7px 14px;border-radius:4px;cursor:pointer;font-weight:600;font-size:13px;margin-left:auto">Refresh 抓最新</button>
+  <span id="status" style="color:var(--muted);font-size:13px"></span>
+  <span><a href="/" class="nav-btn">← 回主表 (For X 開盤前看)</a></span>
 </header>
 
 <div class="table-wrap">
@@ -353,6 +355,36 @@ async function load() {
 
 window.addEventListener("resize", syncStickyOffset);
 load();
+
+// Refresh button — same logic as 主表's doRefresh
+async function doRefresh() {
+  const btn = document.getElementById("btnRefresh");
+  const stat = document.getElementById("status");
+  btn.disabled = true;
+  stat.textContent = "Refreshing...";
+  try {
+    const r = await fetch("/api/refresh", { method: "POST" }).then(r => r.json());
+    if (r.mode === "catch_up") {
+      const ok = r.results.filter(x => x.status && x.status.startsWith("ok")).length;
+      const inc = r.results.filter(x => x.status && x.status.startsWith("INCOMPLETE")).length;
+      const skip = r.results.filter(x => x.status && x.status.includes("skipped")).length;
+      stat.textContent = `Catch-up: ${ok} ok, ${inc} incomplete, ${skip} skipped`;
+    } else if (r.mode === "no_op") {
+      stat.textContent = r.message || "DB up-to-date";
+    } else if (r.ok) {
+      stat.textContent = `Refresh OK (${r.target_date}, ${r.elapsed_sec}s)`;
+    } else {
+      stat.textContent = `失敗: ${(r.errors || []).join("; ")}`;
+    }
+    // Reload comprehensive table after refresh — single source of truth (DB) updated
+    await load();
+  } catch (e) {
+    stat.textContent = `失敗: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("btnRefresh").addEventListener("click", doRefresh);
 </script>
 </body>
 </html>

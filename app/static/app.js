@@ -208,7 +208,21 @@ async function doRefresh() {
     }
     const url = dataDate ? `/api/refresh?date=${dataDate}` : "/api/refresh";
     const r = await fetch(url, { method: "POST" }).then(r => r.json());
-    if (r.ok) {
+    // catch-up mode response: { mode: 'catch_up', results: [...], outlier_audit: [...] }
+    // single-day response: { ok, target_date, elapsed_sec, errors }
+    if (r.mode === "catch_up") {
+      const ok = r.results.filter(x => x.status && x.status.startsWith("ok")).length;
+      const inc = r.results.filter(x => x.status && x.status.startsWith("INCOMPLETE")).length;
+      const skip = r.results.filter(x => x.status && x.status.includes("skipped")).length;
+      const conflicts = r.results.reduce((s, x) => s + (x.conflicts || []).length, 0);
+      const outliers = (r.outlier_audit || []).length;
+      let msg = `Catch-up: ${ok} ok, ${inc} incomplete, ${skip} skipped`;
+      if (conflicts) msg += `, ${conflicts} conflicts`;
+      if (outliers) msg += `, ${outliers} outliers`;
+      setStatus(msg, inc || conflicts || outliers ? "err" : "ok");
+    } else if (r.mode === "no_op") {
+      setStatus(r.message || "DB up-to-date", "ok");
+    } else if (r.ok) {
       setStatus(`Refresh OK (data ${r.target_date}, ${r.elapsed_sec}s)`, "ok");
     } else {
       setStatus(`Refresh 失敗: ${(r.errors || []).join("; ")}`, "err");
