@@ -73,6 +73,7 @@
   table.summary {
     border-collapse: collapse;
     width: 100%;
+    table-layout: fixed;          /* 鎖死 col widths from <colgroup>, 防止切日期抖動 */
     background: var(--panel);
     border: 2px solid var(--border-thick);    /* outer thick */
     color: var(--fg);

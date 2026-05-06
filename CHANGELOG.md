@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.10.29] - 2026-05-06 14:45
+
+### Fixed (用戶: 切換日期時表格欄寬會抖動)
+- `table.summary` 加 `table-layout: fixed`
+- 之前預設 `auto`, col widths 跟隨 cell content 動態調整
+  → 切日期 content 不同 (e.g. -5,865 vs -643,205) → 寬度不一 → 視覺抖動
+- 改 fixed 後 col widths 完全 follow `<colgroup>` % 值, 不 dynamic
+- 驗證 2 dates (2026-05-06 / 2024-08-15) widths 完全一致 [506, 192, 132, 101]
+
 ## [v0.10.28] - 2026-05-06 14:35
 
 ### Fixed (用戶: 為什麼按 refresh 還要 Ctrl+F5)
