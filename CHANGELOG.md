@@ -1,5 +1,28 @@
 # Changelog
 
+## [v0.10.35] - 2026-05-06 16:20
+
+### UI: 綜合整理 header rearrange + 「For 開盤前看」 cell clickable
+
+#### Header 加 Refresh button + 回主表 button + 資料日期/上次 refresh info
+- 之前 layout: 「綜合整理 [muted text] ... [Refresh] [Status] [回主表]」
+- 改 layout: 「綜合整理 [muted text] [Refresh] [回主表] [info: 資料日期 ... 上次 refresh ...] | [Status]」
+- info 從 `/api/comprehensive` payload 帶 `last_data_date` + `last_refresh` (跟主表同 API source)
+
+#### 「For 開盤前看」 col cells clickable
+- cursor: pointer + color 藍
+- hover underline + 淡藍 background
+- click navigate to `/?view_date=YYYY-MM-DD` (主表該日)
+
+### Verified Playwright
+- cursor='pointer' / color='rgb(44,90,160)' / vd='2026-05-07'
+- click → URL `/?view_date=2026-05-07` 跳主表 ✓
+
+### Background sweep (PID 48498) 跑中
+- full_sweep_v2.py 對 11 cols 全段 endpoint cross-check
+- 進度 [75/1537] 跑 0 fixed (= DB match)
+- chain `byoejn7mf` 等完成 auto-report
+
 ## [v0.10.34] - 2026-05-06 15:30
 
 ### 「第 2 DB」 比對 final report

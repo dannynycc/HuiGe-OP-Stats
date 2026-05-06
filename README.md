@@ -162,6 +162,8 @@ stop.bat    # 停掉
 - **電子選擇權月選結算日 highlight**：那 row 整列淡黃 (`#FEF3C7`)，hover 變 amber
 - **色階 (融資餘額佔市值比)**：上市/上櫃 各自獨立綠 → 黃 → 紅 漸層
 - **窄 viewport** (≤1500px) 自動橫向 scroll，每欄 nowrap fit
+- **Header**: Refresh button + 回主表 button + 資料日期/上次 refresh info (v0.10.35)
+- **「For 開盤前看」cell 可 click** → 跳主表該 view_date (v0.10.35)
 
 ## Backfill (歷史資料抓取)
 

@@ -155,7 +155,16 @@ def api_comprehensive(response: Response) -> dict[str, Any]:
     for r in rows:
         r["view_date"] = next_map.get(r["date"])
         r["is_settlement"] = r["date"] in settlement_set
-    return {"rows": rows}
+
+    # last refresh + data_date for header display
+    with connect() as con:
+        last = con.execute("SELECT * FROM refresh_log ORDER BY id DESC LIMIT 1").fetchone()
+        last_dd = con.execute("SELECT MAX(date) FROM op_legal WHERE daynight='day'").fetchone()
+    return {
+        "rows": rows,
+        "last_data_date": last_dd[0] if last_dd else None,
+        "last_refresh": dict(last) if last else None,
+    }
 
 
 @app.get("/comprehensive")

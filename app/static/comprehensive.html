@@ -101,6 +101,9 @@
 
   /* Negative values get red — qualify selector to beat .zonghe td { color } (0,1,2) */
   table.zonghe td.neg { color: var(--neg-text); }
+  /* For 開盤前看 col cells clickable → 跳到主表該日 */
+  table.zonghe td.clickable { cursor: pointer; color: #2c5aa0; }
+  table.zonghe td.clickable:hover { text-decoration: underline; background: #DBEAFE !important; }
   /* 電子選擇權 (TEO) 月選結算日 — 比 cornsilk 更明顯的 amber */
   table.zonghe tbody tr.settlement td { background: #FEF3C7; }   /* amber-100 */
   /* settlement + hover: 黃底加深 + 上下藍邊框, 視覺保留 settlement 識別 */
@@ -127,9 +130,10 @@
 <header>
   <h1>綜合整理</h1>
   <span style="color:var(--muted)">柴柴 — 期交所法人部位彙整 ‧ 全部歷史</span>
-  <button id="btnRefresh" style="background:#2c5aa0;color:#fff;border:0;padding:7px 14px;border-radius:4px;cursor:pointer;font-weight:600;font-size:13px;margin-left:auto">Refresh 抓最新</button>
-  <span id="status" style="color:var(--muted);font-size:13px"></span>
-  <span><a href="/" class="nav-btn">← 回主表 (For X 開盤前看)</a></span>
+  <button id="btnRefresh" style="background:#2c5aa0;color:#fff;border:0;padding:7px 14px;border-radius:4px;cursor:pointer;font-weight:600;font-size:13px;margin-left:8px">Refresh 抓最新</button>
+  <a href="/" class="nav-btn" style="margin-left:8px">← 回主表 (For X 開盤前看)</a>
+  <span id="refreshInfo" style="color:var(--muted);font-size:13px;margin-left:12px"></span>
+  <span id="status" style="color:var(--muted);font-size:13px;margin-left:auto"></span>
 </header>
 
 <div class="table-wrap">
@@ -315,10 +319,18 @@ function syncStickyOffset() {
 
 async function load() {
   const r = await fetch("/api/comprehensive").then(r => r.json());
+  // header info: 資料日期 + 上次 refresh (帶過來自 API)
+  const info = document.getElementById("refreshInfo");
+  if (info) {
+    const dd = r.last_data_date || "—";
+    const lr = r.last_refresh;
+    const lrTxt = lr ? `${lr.ts.replace("T"," ")} ${lr.ok ? "✓" : "✗"}` : "—";
+    info.textContent = `資料日期 ${dd} · 上次 refresh ${lrTxt}`;
+  }
   const rows = r.rows || [];
   if (!rows.length) {
     document.getElementById("zhBody").innerHTML =
-      `<tr><td colspan="16" style="text-align:center;color:var(--muted);padding:30px">(無資料)</td></tr>`;
+      `<tr><td colspan="17" style="text-align:center;color:var(--muted);padding:30px">(無資料)</td></tr>`;
     return;
   }
   // Reverse (newest first) so latest 日期在最上
@@ -330,7 +342,7 @@ async function load() {
   const tpexMin = Math.min(...tpexPcts), tpexMax = Math.max(...tpexPcts);
   const html = rows.map(r => `
     <tr${r.is_settlement ? ' class="settlement"' : ''}>
-      <td style="text-align:left">${fmtMD(r.view_date)}</td>
+      <td class="clickable" style="text-align:left" data-vd="${r.view_date || ''}">${fmtMD(r.view_date)}</td>
       <td style="text-align:left">${fmtMD(r.date)}</td>
       ${tdTwii(r.twii_close)}
       ${tdPlainInt(r.tx_close)}
@@ -351,6 +363,13 @@ async function load() {
   `).join("");
   document.getElementById("zhBody").innerHTML = html;
   requestAnimationFrame(syncStickyOffset);
+  // Wire click handler 到「For 開盤前看」 cell — 跳主表 view_date=該日
+  document.querySelectorAll("td.clickable").forEach(td => {
+    td.addEventListener("click", () => {
+      const vd = td.dataset.vd;
+      if (vd) window.location.href = `/?view_date=${vd}`;
+    });
+  });
 }
 
 window.addEventListener("resize", syncStickyOffset);
