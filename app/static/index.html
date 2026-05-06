@@ -51,6 +51,17 @@
     font-weight: 600; font-size: 13px;
   }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* nav-btn 切換不同 view (主表 vs 綜合整理) — 風格區別於 refresh 按鈕 */
+  .nav-btn {
+    display: inline-block;
+    background: #fff; color: #2c5aa0;
+    border: 2px solid #2c5aa0;
+    padding: 5px 14px; border-radius: 4px;
+    text-decoration: none; font-weight: 600; font-size: 13px;
+    margin-left: 12px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-btn:hover { background: #2c5aa0; color: #fff; }
   input[type=date] {
     background: #fff; border: 1px solid var(--border-thin);
     padding: 5px 8px; border-radius: 3px;
@@ -169,7 +180,7 @@
   <input type="date" id="viewDate">
   <span class="meta">開盤前看</span>
   <button id="btnRefresh">Refresh 抓最新</button>
-  <a href="/comprehensive" style="color:#2c5aa0;text-decoration:none;font-size:13px;margin-left:10px">綜合整理 →</a>
+  <a href="/comprehensive" class="nav-btn">📊 綜合整理 (歷史總表)</a>
   <div id="status">—</div>
 </header>
 

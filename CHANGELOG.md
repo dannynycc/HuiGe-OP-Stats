@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.10.14] - 2026-05-06 11:55
+
+### UI (用戶: 切換按鈕要直覺清晰)
+- 主表 → 綜合整理: 「綜合整理 →」 link → 「📊 綜合整理 (歷史總表)」 button
+- 綜合整理 → 主表: 「← 回主表 (For 開盤前看)」 link → 「← 回主表 (For X 開盤前看)」 button
+- 兩邊都加 `.nav-btn` class (outline style: 白底藍邊 / hover 反白藍底)
+- 視覺上區別於 「Refresh 抓最新」 (solid blue) — 一個是「同步動作」, 一個是「換頁」
+
 ## [v0.10.13] - 2026-05-06 12:10
 
 ### 用戶要求 deeper audit (含 refresh) — 找到 2 個 bug

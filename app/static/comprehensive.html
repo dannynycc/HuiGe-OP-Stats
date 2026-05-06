@@ -103,13 +103,24 @@
   table.zonghe td.neg { color: var(--neg-text); }
   /* col widths via <colgroup> — 確保 group 下的 上市/上櫃 sub-col 等寬 */
   table.zonghe { table-layout: fixed; }
+
+  /* nav-btn 切回主表, 跟 index.html 同樣式統一視覺語言 */
+  .nav-btn {
+    display: inline-block;
+    background: #fff; color: #2c5aa0;
+    border: 2px solid #2c5aa0;
+    padding: 5px 14px; border-radius: 4px;
+    text-decoration: none; font-weight: 600; font-size: 13px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-btn:hover { background: #2c5aa0; color: #fff; }
 </style>
 </head>
 <body>
 <header>
   <h1>綜合整理</h1>
   <span style="color:var(--muted)">柴柴 — 期交所法人部位彙整 ‧ 全部歷史</span>
-  <span style="margin-left:auto"><a href="/">← 回主表 (For 開盤前看)</a></span>
+  <span style="margin-left:auto"><a href="/" class="nav-btn">← 回主表 (For X 開盤前看)</a></span>
 </header>
 
 <div class="table-wrap">
