@@ -6,3 +6,5 @@ logs/
 _analysis/
 api_probe/
 .venv/
+# Repo root debug screenshots — ad-hoc Playwright output 不入庫
+/*.png

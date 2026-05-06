@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.10.49] - 2026-05-07 00:01
+
+### Cleanup: 砍 ad-hoc debug screenshot scripts + .gitignore root *.png
+
+- 用戶: 「D:\tmp 跟 D:\d\ClaudeCode\法人OP日夜盤數據 是不是亂創的路徑, 你 code 裡面也清乾淨」
+- 起因: 我 PowerShell 跑 Playwright 時用 `/tmp/x.png` + `/d/path/x.png`
+  Linux/Git-Bash style path → PowerShell python 把 `/tmp/` 當 cwd-relative 解 →
+  land 在 `D:\tmp\` + `D:\d\ClaudeCode\法人OP日夜盤數據\` (= 雙倍 D:\d 嵌套)
+- 兩個 stray dir 各自有 2-4 個 PNG 殘留, 已 `cmd /c rmdir /s /q` 全清
+- 砍 `scripts/check_chart_modes.py` + `scripts/check_scatter.py`
+  (= 此 session ad-hoc Playwright debug, 寫 png 到 repo root, 已完成任務)
+- 留 `scripts/check_table_width.py` (= 純 print measurement, 沒寫 file, 將來還能用)
+- `.gitignore` 加 `/*.png` (root 層, 防 future 再有 careless screenshot 入庫)
+
 ## [v0.10.48] - 2026-05-06 23:55
 
 ### Docs: 新增 server 啟動/停止完整教學 `docs/SERVER.md`
