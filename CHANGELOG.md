@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.10.32] - 2026-05-06 15:10
+
+### Fixed (用戶: 日盤口數欄上下數字對不齊 + 收盤價窄 + 日期超框)
+- 主表 `max-width` 1050 → 1300px (用戶允許拉寬)
+- col widths redistribute 容下「For 2025/11/27(四) 開盤前看」+ 收盤價 7%→8%
+- 加 `font-variant-numeric: tabular-nums` 對數字 cells
+  - 每 char (digit/comma/minus) 等寬 9.5px
+  - 確保 row 之間 digit position 上下對齊 (column-style)
+
+### Auto-verify Playwright
+- 3 viewports × 5 dates = 15 場景 0 overflow
+- 5 row 「日盤口數」 cell text width: 57.0 / 28.5 / 9.5 / 28.5 / 47.5 / 66.5
+  全 9.5 倍數 → 字寬一致
+
+### Note v0.10.31 README freshness 已 push, 此 commit 補功能修復
+
 ## [v0.10.30] - 2026-05-06 14:55
 
 ### Fixed (用戶: 字超框 + 你明明就有工具可以檢查)

@@ -67,7 +67,7 @@
     padding: 5px 8px; border-radius: 3px;
     font-family: inherit;
   }
-  main { padding: 18px; max-width: 1050px; margin: 0 auto; }
+  main { padding: 18px; max-width: 1300px; margin: 0 auto; }
 
   /* ===== Excel-faithful summary table ===== */
   table.summary {
@@ -85,6 +85,11 @@
     white-space: nowrap;
     font-weight: normal;                      /* Excel: no bold anywhere */
     color: var(--fg);                         /* black */
+  }
+  /* 數字 cells: tabular-nums + monospace digit, 確保 row 之間 1/2/3/.../9 等寬 */
+  table.summary tbody td:not(.product) {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 
   /* 4 vertical thick dividers: A|B  D|E  F|G  H|I */
@@ -188,16 +193,16 @@
 <main>
   <table class="summary" id="mainTable">
     <colgroup>
-      <col style="width:14%">    <!-- For corner / 商品 label — 容 「For 2026/5/6(三) 開盤前看」 -->
+      <col style="width:14%">    <!-- For corner / 商品 label — 容 「For 2025/11/27(四) 開盤前看」 -->
       <col style="width:8%">     <!-- 日盤口數 -->
       <col style="width:9%">     <!-- 日盤成本 -->
-      <col style="width:7%">     <!-- 收盤價 -->
+      <col style="width:8%">     <!-- 收盤價 (加大, 從 7) -->
       <col style="width:11%">    <!-- 淨部位 (paren format) -->
       <col style="width:9%">     <!-- 淨部位成本 -->
       <col style="width:9%">     <!-- 夜盤口數 -->
       <col style="width:9%">     <!-- 夜盤成本 -->
-      <col style="width:12%">    <!-- 開盤前部位 (paren format) -->
-      <col style="width:12%">    <!-- 開盤前多空 (5 中字 header + paren) -->
+      <col style="width:11%">    <!-- 開盤前部位 (paren format) -->
+      <col style="width:12%">    <!-- 開盤前多空 -->
     </colgroup>
     <thead>
       <tr>
