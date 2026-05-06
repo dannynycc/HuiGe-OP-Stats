@@ -327,14 +327,24 @@ function drawScatterPanel(container, title, size, xData, yData, color) {
     ctx.fill();
   }
 
+  // r → 白話: 弱相關時不加方向 (太接近 0 時 + / - 沒實質意義)
   const r = pearsonR(xs, ys);
+  const absR = Math.abs(r);
+  let verdict;
+  if (absR < 0.3)      verdict = "幾乎不相關 (指數漲跌跟融資% 沒對應)";
+  else if (absR < 0.6) verdict = r > 0 ? "中度同步 (指數漲, 融資% 多半也漲)" : "中度反向";
+  else                 verdict = r > 0 ? "強同步 (指數跟融資% 大致一起動)"  : "強反向 (指數漲時融資% 反而跌)";
+
   ctx.fillStyle = color;
   ctx.font = "bold 13px sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText(`Pearson r = ${r.toFixed(3)}  (n=${points.length}, 全段)`,
+  ctx.fillText(`同步度 ${r.toFixed(2)} → ${verdict}`,
                M.l + W - 8, M.t + 18);
   ctx.fillStyle = "#666";
   ctx.font = "11px sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText(`(n=${points.length}, 範圍 -1 反向 ~ 0 無關 ~ +1 同步)`,
+               M.l + W - 8, M.t + 32);
   ctx.textAlign = "left";
   ctx.fillText("● 點顏色: 淡 = 早 (2020), 濃 = 近 (2026)", M.l + 4, M.t + 18);
 }
