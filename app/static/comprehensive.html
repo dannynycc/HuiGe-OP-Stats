@@ -262,6 +262,28 @@ function tdPct(v) {
   const cls = v < 0 ? " class=neg" : "";
   return `<td${cls}>${fmtPct(v)}</td>`;
 }
+// Excel-style 3-color scale: green (low) → yellow (mid) → red (high)
+// ratio in [0,1]; under 0.5 = green→yellow, over 0.5 = yellow→red.
+function colorScale(ratio) {
+  const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+  // anchors (RGB)
+  const G = [99, 190, 123];   // green
+  const Y = [255, 235, 132];  // yellow
+  const R = [248, 113, 113];  // red
+  if (ratio <= 0.5) {
+    const t = ratio * 2;
+    return `rgb(${lerp(G[0],Y[0],t)},${lerp(G[1],Y[1],t)},${lerp(G[2],Y[2],t)})`;
+  }
+  const t = (ratio - 0.5) * 2;
+  return `rgb(${lerp(Y[0],R[0],t)},${lerp(Y[1],R[1],t)},${lerp(Y[2],R[2],t)})`;
+}
+function tdPctScale(v, mn, mx) {
+  if (v == null || mn == null || mx == null || mx === mn) return tdPct(v);
+  const ratio = Math.max(0, Math.min(1, (v - mn) / (mx - mn)));
+  const bg = colorScale(ratio);
+  const cls = v < 0 ? " class=neg" : "";
+  return `<td${cls} style="background:${bg}">${fmtPct(v)}</td>`;
+}
 function tdParen2(v) {
   if (v == null) return "<td></td>";
   const cls = v < 0 ? " class=neg" : "";
@@ -291,6 +313,12 @@ async function load() {
   }
   // Reverse (newest first) so latest 日期在最上
   rows.reverse();
+  // Pre-compute min/max for color-scaled cols (融資餘額佔市值比 上市/上櫃)
+  // 上市跟上櫃各自獨立色階 (per user)
+  const twsePcts = rows.map(r => r.twse_margin_pct).filter(v => v != null);
+  const tpexPcts = rows.map(r => r.tpex_margin_pct).filter(v => v != null);
+  const twseMin = Math.min(...twsePcts), twseMax = Math.max(...twsePcts);
+  const tpexMin = Math.min(...tpexPcts), tpexMax = Math.max(...tpexPcts);
   const html = rows.map(r => `
     <tr${r.is_settlement ? ' class="settlement"' : ''}>
       <td style="text-align:left">${fmtMD(r.view_date)}</td>
@@ -304,8 +332,8 @@ async function load() {
       ${tdParenInt(r.op_cp_net)}
       ${tdParenInt(r.op_pre_open_cp_net)}
       ${tdParenInt(r.stock_fut_legal_net)}
-      ${tdPct(r.twse_margin_pct)}
-      ${tdPct(r.tpex_margin_pct)}
+      ${tdPctScale(r.twse_margin_pct, twseMin, twseMax)}
+      ${tdPctScale(r.tpex_margin_pct, tpexMin, tpexMax)}
       ${tdAcct(r.twse_margin_amt_oku)}
       ${tdAcct(r.tpex_margin_amt_oku)}
       ${tdParen2(r.twse_mkt_cap_chao)}

@@ -13,22 +13,28 @@ from .scrapers import taifex, twse, tpex
 log = logging.getLogger(__name__)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Module-level negative cache (yyyymm -> last_attempt_ts) to skip re-fetching
-# settlement for future months that haven't released yet. 1-hour TTL.
-_SETTLEMENT_NEG_CACHE: dict[str, float] = {}
+
+def _third_wednesday(year: int, month: int):
+    """Compute 3rd Wed of a month — TAIFEX 月選結算日 rule (97% accurate,
+    holiday-順延 in 春節 1-2月 偶 mismatch e.g. 2023/01 = 1/30 not 1/18)."""
+    import datetime as _dt
+    first = _dt.date(year, month, 1)
+    days_to_wed = (2 - first.weekday()) % 7
+    return first + _dt.timedelta(days=days_to_wed + 14)
 
 
 def _maybe_fetch_settlement_dates(target_date: str) -> dict[str, Any]:
     """Ensure TEO 月選 settlement dates for target_date's month are in DB.
 
-    Strategy: Only call TAIFEX endpoint if that month's settlement isn't
-    cached yet (1 endpoint call per month, not per refresh). DB lookup is
-    O(log n) PK index — instant, no need to optimize that further.
+    Strategy:
+    1. If month entry already in DB AND has settlement_price → cached (true 真值), skip
+    2. If entry in DB but price NULL (predicted by 第三 Wed rule) AND target_date >=
+       predicted settlement date → endpoint should now have actual data, fetch & verify
+    3. If month not in DB → insert predicted (3rd Wed), don't fetch endpoint
+       (= future month, no point asking endpoint that hasn't released)
 
-    Why we need this: refresh writes daily_summary for target_date, and the
-    UI highlights settlement-day rows. If target's month settlement isn't in
-    DB, the highlight will be missing for that row when the user looks at
-    comprehensive view.
+    Result: endpoint only hit on settlement-day refresh (~1 day per month).
+    Other refreshes are 0ms DB lookups.
     """
     import datetime as _dt
     try:
@@ -39,33 +45,54 @@ def _maybe_fetch_settlement_dates(target_date: str) -> dict[str, Any]:
     yyyymm = f"{target.year:04d}{target.month:02d}"
     with connect() as con:
         cached = con.execute(
-            "SELECT 1 FROM option_settlement_dates WHERE contract_month = ? AND product = 'TEO' LIMIT 1",
+            """SELECT date, settlement_price FROM option_settlement_dates
+               WHERE contract_month = ? AND product = 'TEO' LIMIT 1""",
             (yyyymm,)
         ).fetchone()
-    if cached:
+
+    # Case 1: cached with real price → skip
+    if cached and cached[1] is not None:
         return {"cached": True, "month": yyyymm}
 
-    # In-memory negative cache: avoid re-hitting endpoint every refresh for a
-    # future month that hasn't released settlement yet (endpoint returns 0 rows).
-    # 1-hour TTL — re-attempt after expiry in case settlement was just released.
-    import time as _t
-    cache_entry = _SETTLEMENT_NEG_CACHE.get(yyyymm)
-    if cache_entry and (_t.time() - cache_entry) < 3600:
-        return {"neg_cached": True, "month": yyyymm}
+    # Case 2: predicted entry exists, check if settlement should have happened
+    # by now (target_date >= predicted date) → fetch endpoint to upgrade
+    predicted_date = _third_wednesday(target.year, target.month)
+    if cached and cached[0]:
+        # Predicted entry exists. If target hasn't reached settlement, skip.
+        try:
+            stored_date = _dt.date.fromisoformat(cached[0])
+        except ValueError:
+            stored_date = predicted_date
+        if target < stored_date:
+            return {"predicted": True, "month": yyyymm,
+                    "predicted_date": stored_date.isoformat()}
+        # else: fall through to fetch & verify
+    else:
+        # Case 3: no entry → insert predicted
+        with connect() as con:
+            con.execute(
+                """INSERT OR IGNORE INTO option_settlement_dates
+                   (date, product, contract_month, settlement_price)
+                   VALUES (?, 'TEO', ?, NULL)""",
+                (predicted_date.isoformat(), yyyymm),
+            )
+        # If target hasn't reached predicted date, don't fetch
+        if target < predicted_date:
+            return {"predicted_inserted": True, "month": yyyymm,
+                    "predicted_date": predicted_date.isoformat()}
 
-    # Cache miss — fetch the month from TAIFEX. We over-query 6 months ahead
-    # to cache future months in one call (settlement happens 3rd Wed each month
-    # so future months may not have prices yet but date is known).
+    # Settlement should have happened — fetch endpoint to confirm/upgrade
     from io import StringIO
     import pandas as pd
     url = "https://www.taifex.com.tw/cht/5/optIndxFSP"
-    end_y, end_m = target.year, target.month + 6
-    while end_m > 12:
-        end_y += 1
-        end_m -= 12
+    # Query 9 months back so endpoint includes our target month (its quirk)
+    sy, sm = target.year, target.month - 9
+    while sm < 1:
+        sy -= 1
+        sm += 12
     payload = {
-        "start_year": str(target.year), "start_month": str(target.month),
-        "end_year": str(end_y), "end_month": str(end_m),
+        "start_year": str(sy), "start_month": str(sm),
+        "end_year": str(target.year), "end_month": str(target.month),
         "commodityIds": "8",
     }
     r = requests.post(url, data=payload, headers={"User-Agent": UA, "Referer": url},
@@ -73,13 +100,12 @@ def _maybe_fetch_settlement_dates(target_date: str) -> dict[str, Any]:
     try:
         df = pd.read_html(StringIO(r.content.decode("utf-8", errors="replace")), flavor="lxml")[0]
     except (ValueError, IndexError):
-        return {"fetched": True, "month": yyyymm, "rows_written": 0, "note": "no_table"}
+        return {"fetched": True, "month": yyyymm, "note": "no_table"}
     if df.shape[1] < 2:
-        return {"fetched": True, "month": yyyymm, "rows_written": 0, "note": "empty_table"}
-    # Some response shapes: 3 cols (date/contract/price) or 2 cols (date/contract only)
+        return {"fetched": True, "month": yyyymm, "note": "empty_table"}
     df.columns = ["date", "contract"] + (["price"] if df.shape[1] >= 3 else [])
     month_only = df[df["contract"].astype(str).str.match(r"^\d{6}$")]
-    n_written = 0
+    n_upgraded = 0
     with connect() as con:
         for _, row in month_only.iterrows():
             iso = str(row["date"]).replace("/", "-")
@@ -91,17 +117,20 @@ def _maybe_fetch_settlement_dates(target_date: str) -> dict[str, Any]:
                     price = float(p.replace(",", "")) if p not in ("-", "") else None
                 elif isinstance(p, (int, float)) and not (isinstance(p, float) and p != p):
                     price = float(p)
+            # If predicted entry exists for this month with different date,
+            # delete it (calendar 預測 vs actual settlement may differ for 春節)
+            con.execute(
+                "DELETE FROM option_settlement_dates WHERE contract_month = ? AND product = 'TEO' AND date != ?",
+                (contract, iso),
+            )
             con.execute(
                 """INSERT OR REPLACE INTO option_settlement_dates
                    (date, product, contract_month, settlement_price)
                    VALUES (?, 'TEO', ?, ?)""",
                 (iso, contract, price),
             )
-            n_written += 1
-    if n_written == 0:
-        # Negative cache (1 hr TTL) — endpoint had nothing for this month
-        _SETTLEMENT_NEG_CACHE[yyyymm] = _t.time()
-    return {"fetched": True, "month": yyyymm, "rows_written": n_written}
+            n_upgraded += 1
+    return {"fetched": True, "month": yyyymm, "rows_written": n_upgraded}
 
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

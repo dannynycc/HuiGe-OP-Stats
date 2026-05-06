@@ -1,5 +1,47 @@
 # Changelog
 
+## [v0.10.18] - 2026-05-06 14:15
+
+### 5 個 changes 集中 push (前面 v0.10.17 push 的是 hover/settlement 顏色)
+
+#### 1. Settlement strategy: calendar predict + verify
+- 用戶 valid 質疑「每月第一次 refresh 多打 endpoint 沒用」
+- 改用「第三 Wed」規則 (97% 準, 76 dates 中 74 對 — 春節 2 個順延例外)
+- Logic: DB cached + price → skip / predicted + target<predicted → skip /
+  target>=predicted → fetch verify
+- 颱風/holiday 順延: endpoint 自動有真值, fetch 時 DELETE predicted INSERT actual
+- Pre-insert 未來 7 個月 predicted entries (2026-05 ~ 2026-11)
+
+#### 2. 補完 2020 結算日
+- TAIFEX endpoint 怪規律: result 從 `start_month + 9` 起
+- 改 query `start=2019/04` → 76 rows (2020/01 起完整) vs 之前 67
+
+#### 3. Excel 色階 (融資餘額佔市值比)
+- 上市/上櫃 各自獨立色階 (twsePcts/tpexPcts 各算 min/max)
+- 綠 #63BE7B → 黃 #FFEB84 → 紅 #F87171 (低→中→高)
+- 顯示效果: 上市段範圍 0.16%-0.91%, 上櫃 1.10%-1.81%
+
+#### 4. Outlier detection — robust 法 (用戶: 5% threshold 太鬆)
+新 script `scripts/detect_outliers.py` 三個 robust method:
+- **Weekly anchor cross-check**: mkt_cap_weekly vs daily_summary, exact match
+- **TWII ratio MAD-z (5σ)**: rolling 21-day median absolute deviation
+- **Day-over-day jump**: mkt_cap > 3% but TWII < 3% = 不正常
+
+#### 5. 修了 6 個 stale outliers
+- **mkt_cap 4 outliers** (寫成 today 2026-05-05 的 2x 值):
+  - 2025-04-28 / 04-29 / 04-30 / 05-05 (= 跟 today MM/DD 同月日)
+  - Wipe + interp 重算
+  - 後 audit: 0 mismatch
+- **margin 2 outliers** (寫成 today 4751.45 億):
+  - 2023-08-23 / 2024-01-04
+  - 重 fetch endpoint + recompute pct
+- **Background sweep (PID 43175)** 跑全 1535 dates margin 找剩餘 stale
+
+### Final audit (after fix)
+- Weekly anchor cross-check: 0 mismatch ✓
+- TWII ratio outliers: 6 → 2 (剩 2023-01-05/06 borderline z=5.0 春節)
+- Day-over-day jump: 4 → 0 ✓
+
 ## [v0.10.16] - 2026-05-06 12:50
 
 ### Added (用戶: refresh 時也要 trigger settlement check, 想 efficient 法)
