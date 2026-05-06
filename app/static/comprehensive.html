@@ -89,13 +89,7 @@
     border-bottom: 1px solid #888;
     position: sticky;
     z-index: 3;
-    /* 不允許 wrap — wrap 看起來醜, 改用縮短 title + 較小 font */
-    white-space: nowrap;
-  }
-  /* R2 column titles 字體較小 (R1 group 字體 14px, R2 12px) */
-  table.zonghe thead tr:nth-child(2) th {
-    font-size: 12px;
-    padding: 4px 3px;
+    white-space: nowrap;        /* title 不折行 */
   }
   table.zonghe thead tr:nth-child(1) th { top: 0; z-index: 4; }
   table.zonghe thead tr:nth-child(2) th {
@@ -121,23 +115,23 @@
 <div class="table-wrap">
   <table class="zonghe" id="zonghe">
     <colgroup>
-      <col style="width:5%">    <!-- A: For 開盤前看 -->
-      <col style="width:7%">    <!-- B: 前一日日盤Data — 最寬, 字串混中英 -->
-      <col style="width:5%">    <!-- C: 加權指數 -->
-      <col style="width:5%">    <!-- D: 台指期 日盤收盤 -->
-      <col style="width:6%">    <!-- E: 台指期 法人淨部位 -->
-      <col style="width:6%">    <!-- F: 台指期 開盤前多空 -->
-      <col style="width:6%">    <!-- G: 法人買權CALL -->
-      <col style="width:6%">    <!-- H: 法人賣權PUT -->
-      <col style="width:7%">    <!-- I: 法人CP合計多空 — 最長 -->
-      <col style="width:6%">    <!-- J: 選擇權 開盤前多空 -->
-      <col style="width:6%">    <!-- K: 股票期貨 法人淨部位 -->
-      <col style="width:5%">    <!-- L: 上市佔比 -->
-      <col style="width:5%">    <!-- M: 上櫃佔比 -->
-      <col style="width:5%">    <!-- N: 上市億 -->
-      <col style="width:5%">    <!-- O: 上櫃億 -->
-      <col style="width:5%">    <!-- P: 上市兆 -->
-      <col style="width:5%">    <!-- Q: 上櫃兆 -->
+      <col style="width:108px">  <!-- A: For 開盤前看 (date, 11 chars) -->
+      <col style="width:108px">  <!-- B: 前一日日盤Data (date, 11 chars) -->
+      <col style="width:90px">   <!-- C: 加權指數 (4 chars) -->
+      <col style="width:75px">   <!-- D: 台指期 日盤收盤 (title「台指期」3 字) -->
+      <col style="width:88px">   <!-- E: 台指期 法人淨部位 -->
+      <col style="width:90px">   <!-- F: 台指期 開盤前多空 -->
+      <col style="width:108px">  <!-- G: 法人買權CALL — 6 中 + 4 英 -->
+      <col style="width:100px">  <!-- H: 法人賣權PUT — 5 中 + 3 英 -->
+      <col style="width:118px">  <!-- I: 法人CP合計多空 — 5 中 + 2 英 -->
+      <col style="width:90px">   <!-- J: 選擇權 開盤前多空 -->
+      <col style="width:88px">   <!-- K: 股票期貨 法人淨部位 -->
+      <col style="width:60px">   <!-- L: 上市 -->
+      <col style="width:60px">   <!-- M: 上櫃 -->
+      <col style="width:88px">   <!-- N: 上市(億元) -->
+      <col style="width:88px">   <!-- O: 上櫃(億元) -->
+      <col style="width:88px">   <!-- P: 上市(兆元) -->
+      <col style="width:88px">   <!-- Q: 上櫃(兆元) -->
     </colgroup>
     <thead>
       <!-- R1: group header.
@@ -156,27 +150,25 @@
         <th colspan="2">融資餘額</th>
         <th colspan="2">總市值</th>
       </tr>
-      <!-- R2: column header (17 cells, full row).
-           Titles 縮短 + 12px 字體 fit 在 1366px viewport without wrap.
-           「法人」 prefix 在 R1 group 已暗示 (台指期/選擇權未平倉/股票期貨), 砍掉 -->
+      <!-- R2: column header (17 cells, full row) — 原始 Excel layout titles -->
       <tr>
-        <th>開盤前看</th>
-        <th>前一日日盤</th>
+        <th>For 開盤前看</th>
+        <th>前一日日盤Data</th>
         <th>加權指數</th>
-        <th>日盤收盤</th>
-        <th>淨部位</th>
+        <th>台指期</th>
+        <th>法人淨部位</th>
         <th>開盤前多空</th>
-        <th>買權 CALL</th>
-        <th>賣權 PUT</th>
-        <th>CP合計多空</th>
+        <th>法人買權CALL</th>
+        <th>法人賣權PUT</th>
+        <th>法人CP合計多空</th>
         <th>開盤前多空</th>
-        <th>淨部位</th>
+        <th>法人淨部位</th>
         <th>上市</th>
         <th>上櫃</th>
-        <th>上市億元</th>
-        <th>上櫃億元</th>
-        <th>上市兆元</th>
-        <th>上櫃兆元</th>
+        <th>上市(億元)</th>
+        <th>上櫃(億元)</th>
+        <th>上市(兆元)</th>
+        <th>上櫃(兆元)</th>
       </tr>
     </thead>
     <tbody id="zhBody">

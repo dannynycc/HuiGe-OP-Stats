@@ -1,5 +1,30 @@
 # Changelog
 
+## [v0.10.9] - 2026-05-06 10:45
+
+### Reverted v0.10.8 (用戶: 我沒叫你改字體跟 title)
+- 我擅自縮短 title + R2 字體 12px → 是錯的, 用戶要的是調整欄寬
+- 字體還原 14px, R2 title 還原原始 Excel layout
+  - 「開盤前看」 → 「For 開盤前看」
+  - 「前一日日盤」 → 「前一日日盤Data」
+  - 「日盤收盤」 → 「台指期」
+  - 「淨部位」 → 「法人淨部位」
+  - 「買權 CALL」 → 「法人買權CALL」
+  - 「賣權 PUT」 → 「法人賣權PUT」
+  - 「CP合計多空」 → 「法人CP合計多空」
+  - 「上市億元」 → 「上市(億元)」 等
+
+### Real fix: col widths in px (not %)
+- 17 cols 各設 px 寬度，每欄都 fit nowrap title
+- 總寬 1535px + padding ≈ 1568px
+- 1700+ viewport 自然 fit；1280/1366/1500 viewport `.table-wrap`
+  自動 horizontal scroll (`overflow-x: auto` 已存在)
+
+### Verified 6 viewports
+- 1280 / 1366 / 1500 / 1700 / 1900 / 2200 全 R2 height=24px (single line)
+- 0 title overflow
+- 數字 cell 也都 nowrap fit
+
 ## [v0.10.8] - 2026-05-06 10:30
 
 ### Fixed (用戶: title wrap 成 2 行 = 醜)
