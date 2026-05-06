@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.10.22] - 2026-05-06 13:40
+
+### UI: 融資餘額(億元) 加色階
+- 用戶要求 上市/上櫃 各自獨立綠→黃→紅
+- 新 helper `tdAcctScale(v, mn, mx)` 同 tdPctScale logic
+- pre-compute twseAmts / tpexAmts min/max
+- 4 cols 都套色階 (上市%, 上櫃%, 上市億, 上櫃億), 各自 range
+
 ## [v0.10.21] - 2026-05-06 13:30
 
 ### Confidence audit (用戶: 對 DB 內容沒信心, 想建 fresh DB 比對)
