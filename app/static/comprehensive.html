@@ -294,13 +294,13 @@ function tdAcct(v) {
   const cls = v < 0 ? " class=neg" : "";
   return `<td${cls}>${fmtAccountingInt(v)}</td>`;
 }
-// 同 tdPctScale 的 logic, 對「融資餘額(億元)」cell 套色階
-function tdAcctScale(v, mn, mx) {
-  if (v == null || mn == null || mx == null || mx === mn) return tdAcct(v);
+// 同 tdPctScale 的 logic, 對「總市值(兆元)」 (用 fmtParen2 格式) cell 套色階
+function tdParen2Scale(v, mn, mx) {
+  if (v == null || mn == null || mx == null || mx === mn) return tdParen2(v);
   const ratio = Math.max(0, Math.min(1, (v - mn) / (mx - mn)));
   const bg = colorScale(ratio);
   const cls = v < 0 ? " class=neg" : "";
-  return `<td${cls} style="background:${bg}">${fmtAccountingInt(v)}</td>`;
+  return `<td${cls} style="background:${bg}">${fmtParen2(v)}</td>`;
 }
 
 function syncStickyOffset() {
@@ -326,11 +326,11 @@ async function load() {
   const tpexPcts = rows.map(r => r.tpex_margin_pct).filter(v => v != null);
   const twseMin = Math.min(...twsePcts), twseMax = Math.max(...twsePcts);
   const tpexMin = Math.min(...tpexPcts), tpexMax = Math.max(...tpexPcts);
-  // 融資餘額 (億元) — 上市/上櫃 各自獨立色階
-  const twseAmts = rows.map(r => r.twse_margin_amt_oku).filter(v => v != null);
-  const tpexAmts = rows.map(r => r.tpex_margin_amt_oku).filter(v => v != null);
-  const twseAmtMin = Math.min(...twseAmts), twseAmtMax = Math.max(...twseAmts);
-  const tpexAmtMin = Math.min(...tpexAmts), tpexAmtMax = Math.max(...tpexAmts);
+  // 總市值 (兆元) — 上市/上櫃 各自獨立色階
+  const twseCaps = rows.map(r => r.twse_mkt_cap_chao).filter(v => v != null);
+  const tpexCaps = rows.map(r => r.tpex_mkt_cap_chao).filter(v => v != null);
+  const twseCapMin = Math.min(...twseCaps), twseCapMax = Math.max(...twseCaps);
+  const tpexCapMin = Math.min(...tpexCaps), tpexCapMax = Math.max(...tpexCaps);
   const html = rows.map(r => `
     <tr${r.is_settlement ? ' class="settlement"' : ''}>
       <td style="text-align:left">${fmtMD(r.view_date)}</td>
@@ -346,10 +346,10 @@ async function load() {
       ${tdParenInt(r.stock_fut_legal_net)}
       ${tdPctScale(r.twse_margin_pct, twseMin, twseMax)}
       ${tdPctScale(r.tpex_margin_pct, tpexMin, tpexMax)}
-      ${tdAcctScale(r.twse_margin_amt_oku, twseAmtMin, twseAmtMax)}
-      ${tdAcctScale(r.tpex_margin_amt_oku, tpexAmtMin, tpexAmtMax)}
-      ${tdParen2(r.twse_mkt_cap_chao)}
-      ${tdParen2(r.tpex_mkt_cap_chao)}
+      ${tdAcct(r.twse_margin_amt_oku)}
+      ${tdAcct(r.tpex_margin_amt_oku)}
+      ${tdParen2Scale(r.twse_mkt_cap_chao, twseCapMin, twseCapMax)}
+      ${tdParen2Scale(r.tpex_mkt_cap_chao, tpexCapMin, tpexCapMax)}
     </tr>
   `).join("");
   document.getElementById("zhBody").innerHTML = html;
