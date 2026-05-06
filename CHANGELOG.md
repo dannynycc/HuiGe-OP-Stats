@@ -1,5 +1,28 @@
 # Changelog
 
+## [v0.10.47] - 2026-05-06 23:51
+
+### 股期法人淨部位 chart 加 台指期收盤 + 期現價差 (3 panel)
+
+- 用戶: 「stock_fut 走勢圖加 台指期收盤點位 + 台指期-加權指數價差, 看你怎呈現」
+- 3 panel stacked layout (上下對齊 share x-axis):
+  - **上 panel**: 股期法人淨部位 (口) — 紫線 + 0 線虛灰 (= v0.10.46)
+  - **中 panel**: 台指期 近月收盤 (點) — 紅線, 無 0 線
+  - **下 panel**: 台指期 - 加權指數 價差 (點) — 橘線 + 0 線虛灰
+    - title 註明「> 0 升水, < 0 貼水」 給讀者快速 anchor
+    - basis = `tx_close - twii_close` (兩者皆 null → null)
+- New helper: `makeLinePanel(container, title, size, xs, ys, color, unit, withZero)`
+  → 通用單軸 line panel, 可選 0 reference line (期現價差 + 股期淨部位 都吃這個)
+- `getPanelSize`: 加 `stockfut3` mode → 3 panel 高度 = (h - 24) / 3 (24 = 兩個 12px gap)
+- LEGENDS.stockfut 從 1 entry 擴成 3 (對應 3 panel)
+- COLOR 加 `txClose` (#dc2626 紅, 跟融資紅同 — 但 stock_fut category 內無衝突)
+  + `basis` (#ea580c 橘)
+
+### Insight from chart
+- 2026-04~05 期現價差 (basis) 波動明顯加大 (±500 點 vs 過去 ±200), 對應台指期
+  最近劇烈上漲 + 法人空頭加碼到 -650k+
+- 整段 6 年 basis 大致在 0 線附近 (升貼水交替), 沒有持續性偏向
+
 ## [v0.10.46] - 2026-05-06 23:43
 
 ### Added: Category dropdown + 股票期貨 法人淨部位 走勢圖

@@ -116,6 +116,8 @@ const COLOR = {
   tpexMargin: "#2563eb",
   otcIdx:     "#1e3a8a",
   stockFut:   "#7c3aed",  // 紫, 跟融資紅藍區分
+  txClose:    "#dc2626",  // 紅 (台指期/加權同 family — stock_fut category 內不衝突)
+  basis:      "#ea580c",  // 橘, 期現價差
 };
 
 let plots = [];   // 目前活著的 uPlot instances (resize 用)
@@ -157,8 +159,8 @@ function getPanelSize(mode) {
   // chartArea 有 padding 16, gap 12 between panels
   const w = Math.max(100, area.clientWidth  - 32);
   const h = Math.max(100, area.clientHeight - 32);
-  if (mode === "stacked")    return { w,                              h: Math.floor((h - 12) / 2) };
-  if (mode === "sidebyside") return { w: Math.floor((w - 12) / 2),    h };
+  if (mode === "stockfut3")  return { w, h: Math.floor((h - 24) / 3) };  // 3 panel, 2 個 gap
+  if (mode === "stacked")    return { w, h: Math.floor((h - 12) / 2) };
   return { w, h };
 }
 
@@ -360,15 +362,17 @@ function renderScatter() {
                    size, DATA.otc, DATA.tpexMargin, COLOR.tpexMargin);
 }
 
-// Category: stock_fut (股票期貨 法人淨部位) — 單一 line, 含 0 reference line
-function renderStockFut() {
-  const area = document.getElementById("chartArea");
-  area.className = "layout-single";
-  area.innerHTML = "";
+// Generic 單軸 line panel (含 optional 0 reference line)
+function makeLinePanel(container, title, size, xs, ys, color, unit, withZero) {
   const panel = document.createElement("div");
   panel.className = "panel";
-  area.appendChild(panel);
-  const size = getPanelSize("original");
+  if (title) {
+    const t = document.createElement("div");
+    t.className = "panel-title"; t.textContent = title;
+    panel.appendChild(t);
+  }
+  container.appendChild(panel);
+
   const opts = {
     width: size.w, height: size.h,
     legend: { show: false },
@@ -381,12 +385,14 @@ function renderStockFut() {
     ],
     series: [
       {},
-      { label: "股期法人淨部位", scale: "y",
-        stroke: COLOR.stockFut, width: 1.4,
-        value: (u, v) => v == null ? "" : v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " 口" },
+      { label: title, scale: "y",
+        stroke: color, width: 1.3,
+        value: (u, v) => v == null ? ""
+          : v.toLocaleString("en-US", {maximumFractionDigits: 0}) + (unit ? " " + unit : "") },
     ],
-    hooks: {
-      // 在原始 grid line 之上多畫一條 0 水平線, 讓正/負部位一目了然
+  };
+  if (withZero) {
+    opts.hooks = {
       drawAxes: [(u) => {
         const yZero = u.valToPos(0, "y", true);
         if (yZero >= u.bbox.top && yZero <= u.bbox.top + u.bbox.height) {
@@ -402,11 +408,25 @@ function renderStockFut() {
           ctx.restore();
         }
       }],
-    },
-  };
-  const u = new uPlot(opts, [DATA.xsAll, DATA.stockFut], panel);
+    };
+  }
+  const u = new uPlot(opts, [xs, ys], panel);
   attachWheelZoom(u, DATA.dataMinAll, DATA.dataMaxAll);
   plots.push(u);
+}
+
+// Category: stock_fut — 3 stacked panel (股期淨部位 / 台指期收盤 / 期現價差)
+function renderStockFut() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-stacked";
+  area.innerHTML = "";
+  const size = getPanelSize("stockfut3");
+  makeLinePanel(area, "股期法人淨部位 (口) — 外資+自營商, 0 線虛灰",
+    size, DATA.xsAll, DATA.stockFut, COLOR.stockFut, "口", true);
+  makeLinePanel(area, "台指期 近月收盤 (點)",
+    size, DATA.xsAll, DATA.txClose, COLOR.txClose, "點", false);
+  makeLinePanel(area, "台指期 - 加權指數 價差 (點) — > 0 升水, < 0 貼水",
+    size, DATA.xsAll, DATA.basis, COLOR.basis, "點", true);
 }
 
 const RENDER = {
@@ -419,7 +439,11 @@ const LEGENDS = {
   stacked:  [["twii","加權指數 (虛)"], ["twseMargin","上市融資%"], ["otcIdx","OTC指數 (虛)"], ["tpexMargin","上櫃融資%"]],
   original: [["twseMargin","上市 TWSE"], ["tpexMargin","上櫃 TPEX"]],
   scatter:  [["twseMargin","上市點 (X=加權, Y=融資%)"], ["tpexMargin","上櫃點 (X=OTC, Y=融資%)"]],
-  stockfut: [["stockFut","股期法人淨部位 (口) — 外資+自營商, 0 線虛灰"]],
+  stockfut: [
+    ["stockFut", "股期法人淨部位 (口)"],
+    ["txClose",  "台指期 近月收盤 (點)"],
+    ["basis",    "期現價差 = 台指期 - 加權 (點)"],
+  ],
 };
 
 function renderLegend(mode) {
@@ -483,14 +507,18 @@ async function init() {
   const tpexMargin = rows.map(x => x.tpex_margin_pct * 100);
   const twii       = rows.map(x => x.twii_close);
   const otc        = rows.map(x => x.tpex_index_close);
-  // 股票期貨 法人淨部位 (口) — daily_summary.stock_fut_legal_net (外資+自營商)
-  // 用 全部 rows (不過濾 twse_margin_pct), 因為股期 vs 融資 是不同需求
+  // stock_fut category 用 全部 rows (不 filter margin) — 股期/台指期 比 margin
+  // 多覆蓋日期, 直接用 master row list
   const allRows  = (r.rows || []).slice();
   const xsAll    = allRows.map(x => Math.floor(new Date(x.date+"T00:00:00").getTime()/1000));
   const stockFut = allRows.map(x => x.stock_fut_legal_net);
+  const txClose  = allRows.map(x => x.tx_close);
+  // 期現價差 = 台指期收盤 - 加權指數收盤. 兩者皆 null → null
+  const basis    = allRows.map(x =>
+    (x.tx_close != null && x.twii_close != null) ? x.tx_close - x.twii_close : null);
   DATA = {
     xs, twseMargin, tpexMargin, twii, otc,
-    xsAll, stockFut,
+    xsAll, stockFut, txClose, basis,
     dataMin: xs[0], dataMax: xs[xs.length-1],
     dataMinAll: xsAll[0], dataMaxAll: xsAll[xsAll.length-1],
   };
