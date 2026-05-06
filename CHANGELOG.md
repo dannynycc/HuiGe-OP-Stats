@@ -1,5 +1,20 @@
 # Changelog
 
+## [v0.10.48] - 2026-05-06 23:55
+
+### Docs: 新增 server 啟動/停止完整教學 `docs/SERVER.md`
+
+- 用戶: 「server 是要如何完整啟動&結束, 寫成清楚的 md 檔教我」
+- 涵蓋:
+  - 一鍵 `start.bat` / `stop.bat` (背景 + Hidden window + log to file)
+  - 各 .bat 內容剖析 (netstat findstr LISTENING + taskkill /F)
+  - 手動 `python -m uvicorn` 啟動 (含 `--reload` dev mode)
+  - PowerShell 抓 PID / Stop-Process 補殺
+  - 啟動成功 3 步驗證 (netstat / curl / log tail)
+  - 常見錯誤排查 (port 被佔 / module 缺 / DB lock)
+  - 完整目錄樹 (server-related 部分)
+  - TL;DR 6 列 quick reference
+
 ## [v0.10.47] - 2026-05-06 23:51
 
 ### 股期法人淨部位 chart 加 台指期收盤 + 期現價差 (3 panel)

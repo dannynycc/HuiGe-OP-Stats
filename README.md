@@ -128,6 +128,8 @@ start.bat   # 背景啟動 uvicorn :8765
 stop.bat    # 停掉
 ```
 
+> 完整 server 啟動 / 停止 / debug / 排查教學見 [docs/SERVER.md](docs/SERVER.md)
+
 瀏覽器：
 - `http://localhost:8765/` — 主表「For X 開盤前看」(柴柴 6 列彙整)
 - `http://localhost:8765/comprehensive` — **綜合整理 view**：完整 timeseries
