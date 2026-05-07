@@ -348,6 +348,7 @@ async function load() {
   const info = document.getElementById("refreshInfo");
   if (info) {
     const dd = r.last_data_date || "—";
+    // Codex 2026-05-07 16:40:44 +08:00: show summary freshness separately.
     const sd = r.last_summary_date || "—";
     const lr = r.last_refresh;
     const lrTxt = lr ? `${lr.ts.replace("T"," ")} ${lr.ok ? "✓" : "✗"}` : "—";

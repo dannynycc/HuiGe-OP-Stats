@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.10.56] - 2026-05-07 16:40
+
+### Added: Codex attribution and release workflow note
+
+- Codex 2026-05-07 16:40:44 +08:00.
+- Added provenance comments to the Codex-modified code paths from v0.10.55:
+  - `app/main.py`
+  - `app/refresh.py`
+  - `app/static/comprehensive.html`
+- Added `AGENTS.md` so future Codex work in this repo remembers:
+  - use Traditional Chinese
+  - mark Codex-modified files with Codex + Taipei timestamp
+  - scan all `*.md` before release
+  - update changelog/readme and tag using the existing version naming rule
+- README now records the Codex handoff note.
+
 ## [v0.10.55] - 2026-05-07 16:25
 
 ### Fixed: refresh completeness should follow the comprehensive table, not TAIFEX product count

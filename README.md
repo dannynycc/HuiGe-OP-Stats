@@ -4,6 +4,11 @@
 
 版本紀錄見 [CHANGELOG.md](CHANGELOG.md)。
 
+> Codex handoff note: Codex first took over this repo on 2026-05-07 16:40:44 +08:00.
+> Future Codex releases should mark Codex-modified files with Codex + Taipei timestamp,
+> scan all `*.md`, update README/CHANGELOG as needed, and tag using the existing
+> `vX.Y.Z` naming rule.
+
 ## 目的
 
 每天開盤前快速看「柴柴 法人部位彙整」**橫向 6 列總表**（v0.2 砍到只剩這個 view）：

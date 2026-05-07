@@ -570,6 +570,7 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
         # twii_close / mkt_cap_source must be IN the cols list with carry-over,
         # otherwise refresh() destroys those fields each time.
         summary = compute_daily_summary(date_dash, results)
+        # Codex 2026-05-07 16:40:44 +08:00: added TWII plausibility guard.
         # TWII: prefer TWSE FMTQIK (in fetch_turnover payload), fall back to
         # FinMind. Guard against stale/misaligned endpoint values by comparing
         # with TX close; the cash index and TX close should not be wildly apart.
@@ -606,6 +607,8 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
         if tp_h.get("actual_date") == date_dash:
             summary["tpex_index_close"] = tp_h.get("tpex_index_close")
 
+        # Codex 2026-05-07 16:40:44 +08:00: summary completeness follows
+        # comprehensive-view fields, not the total TAIFEX fut product count.
         # Day-session completeness check.
         # The comprehensive table only needs the core summary fields below.
         # Do not depend on total fut_legal product count because TAIFEX can add,
