@@ -1,4 +1,9 @@
-# Research: 法人 CP + 大台 OI 淨 對加權指數預測力
+# Research v1: 法人 CP + 大台 OI 淨 對加權指數預測力
+
+> ⚠️ **本檔為 v1**. 後來 v2 7 round self-audit 把 v1 大部分 finding 推翻
+> (lookahead bias / regime concentration / 方向相反). 看
+> **[RESEARCH_cp_fut_v2.md](RESEARCH_cp_fut_v2.md)** 才是真實結論.
+> v1 的「DIVERGE → 大跌」、「fut5d 持續負 → 反彈」 兩大 claim 都不成立.
 
 資料: `daily_summary`, 範圍 2020-01-02 ~ 2026-05-06, n = 1537
 

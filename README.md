@@ -130,8 +130,13 @@ stop.bat    # 停掉
 
 > 完整 server 啟動 / 停止 / debug / 排查教學見 [docs/SERVER.md](docs/SERVER.md)
 >
-> 法人 CP + 大台 OI 淨 對加權指數預測力 deep statistical 研究見
-> [docs/RESEARCH_cp_fut.md](docs/RESEARCH_cp_fut.md) (v0.10.53)
+> 法人 CP + 大台 OI 淨 對加權指數預測力 deep statistical 研究:
+> - [docs/RESEARCH_cp_fut.md](docs/RESEARCH_cp_fut.md) (v0.10.53, v1 — 大部分被 v2 推翻)
+> - **[docs/RESEARCH_cp_fut_v2.md](docs/RESEARCH_cp_fut_v2.md)** (v0.10.54, **7 round self-audit, 真實結論**)
+>
+> v1 vs v2 對照: v1 的「DIVERGE → 大跌」、「持續負 → 反彈」 兩大 finding 都
+> 死於 audit (lookahead bias / regime concentration / 方向相反). 用戶的
+> 「持續負部位 → 下跌壓力」 hypothesis 在 6 年資料**得不到統計支持**.
 
 瀏覽器：
 - `http://localhost:8765/` — 主表「For X 開盤前看」(柴柴 6 列彙整)

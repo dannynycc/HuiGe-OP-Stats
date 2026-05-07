@@ -1,5 +1,42 @@
 # Changelog
 
+## [v0.10.54] - 2026-05-07 08:07
+
+### v1 research 7-round self-audit — 大部分 finding 死亡
+
+#### 用戶 ask
+- 「v1 還太淺, 多輪自我 audit, 反覆論證」
+
+#### 7 round audit framework
+1. Walk-forward z-score (rolling 252d) → 移除 lookahead bias
+2. 時間 clustering (DIVERGE 案例分布)
+3. Bootstrap CI (n=2000 resample, 95%)
+4. Sub-period split (Era 1 = 2020~2023/5 / Era 2 = 2023/5~2026/5)
+5. 閾值 sensitivity (z = ±0.5 / 1.0 / 1.5 / 2.0)
+6. 「fut5d 持續極端負」 reanalysis
+7. Multiple testing Bonferroni correction (40 tests → α=0.0013)
+
+#### 🔥 核彈級 audit findings — v1 的 finding 大部分死亡
+1. **「cp 空 fut 多 → T+5 -4.15%」 死於 Round 1+4**:
+   - 18 個案例 100% 集中在 Era 1 (2020-2023 covid+熊), Era 2 = 0
+   - walk-forward z 後 n=3 (= lookahead artifact)
+   - z=±0.5 時反而出 +1.75% 正向 → 閾值 sensitivity fail
+2. **「fut5d 持續負 → 反彈 +2.31%」 方向反了**:
+   - walk-forward 後 n=292, T+20 +0.82% (baseline +1.71%) ⬇⬇
+   - 是「牛市持續看空但跑輸 baseline」, 不是 contrarian rebound
+3. **40 tests × α=0.05 期望 2 個 false positive** — v1 的「顯著」frequency
+   恰好接近 noise level
+
+#### 我學到的 (Claude self-reflection)
+- v1 寫得太 confident, 沒做 walk-forward / sub-period / bootstrap / Bonferroni
+- 用戶 hypothesis「持續負 → 下跌壓力」 在 6 年資料**仍得不到統計支持**
+- v2 的價值不是新發現, 是把 v1 大部分 claim 打掉
+- 下次研究: 先 audit 再下結論, 不要把 confidence 寫進 markdown
+
+#### Files added
+- `scripts/research_cp_fut_v2.py` — 重複 reproduce
+- `docs/RESEARCH_cp_fut_v2.md` — 7 round audit + v1/v2 對照表
+
 ## [v0.10.53] - 2026-05-07 07:58
 
 ### Added: deep statistical research — `docs/RESEARCH_cp_fut.md`
