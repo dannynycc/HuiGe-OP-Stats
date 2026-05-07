@@ -1,58 +1,63 @@
 # Changelog
 
+## [v0.10.57] - 2026-05-07 16:50
+
+### 修正：Codex 新增文件改回繁體中文
+
+- Codex 2026-05-07 16:50:00 +08:00。
+- 將 v0.10.55、v0.10.56 的新增 changelog 內容改成繁體中文，貼近既有文件寫法。
+- 將 README 的 Codex 交接註記改成繁體中文。
+- 將 `AGENTS.md` 的 Codex 流程註記改成繁體中文，並明確記住後續文件更新需使用中文。
+
 ## [v0.10.56] - 2026-05-07 16:40
 
-### Added: Codex attribution and release workflow note
+### 新增：Codex 修改註記與發版流程提醒
 
-- Codex 2026-05-07 16:40:44 +08:00.
-- Added provenance comments to the Codex-modified code paths from v0.10.55:
+- Codex 2026-05-07 16:40:44 +08:00。
+- 針對 v0.10.55 由 Codex 修改的程式路徑，補上來源註記：
   - `app/main.py`
   - `app/refresh.py`
   - `app/static/comprehensive.html`
-- Added `AGENTS.md` so future Codex work in this repo remembers:
-  - use Traditional Chinese
-  - mark Codex-modified files with Codex + Taipei timestamp
-  - scan all `*.md` before release
-  - update changelog/readme and tag using the existing version naming rule
-- README now records the Codex handoff note.
+- 新增 `AGENTS.md`，讓後續 Codex 接手此 repo 時記住：
+  - 使用繁體中文，且不可出現簡體中文
+  - Codex 修改的檔案需標註 `Codex` 與台北時間
+  - 發版前需掃過所有 `*.md`
+  - 依既有版本命名規則更新 changelog、README 並打 tag
+- README 補上 Codex 交接註記。
 
 ## [v0.10.55] - 2026-05-07 16:25
 
-### Fixed: refresh completeness should follow the comprehensive table, not TAIFEX product count
+### 修正：refresh 完整性判斷改以綜合整理所需欄位為準
 
-#### User report
-- `/comprehensive` header showed `資料日期 2026-05-07`, but the first row was still
+#### 使用者回報
+- `/comprehensive` 表頭顯示 `資料日期 2026-05-07`，但第一列仍停在
   `前一日日盤Data = 2026/5/6`.
-- Root cause: raw `op_legal` day data for 2026-05-07 was present (`op_day=30`), but
-  `fut_legal` day had 70 rows because TAIFEX omitted unrelated `東證期貨` rows. The old
-  guard required `fut_day >= 73`, so `daily_summary` was not written.
+- 核心原因：2026-05-07 的 `op_legal` 日盤原始資料存在（`op_day=30`），但
+  `fut_legal` 日盤只有 70 筆，因為期交所該日少了與綜合整理無關的 `東證期貨` 資料。
+  舊邏輯要求 `fut_day >= 73`，導致 `daily_summary` 沒有寫入。
 
-#### Fix
-- `write_to_db()` now gates `daily_summary` on the fields the comprehensive view actually
-  needs:
+#### 修正內容
+- `write_to_db()` 寫入 `daily_summary` 時，改檢查綜合整理實際需要的欄位：
   - `op_legal_net`
   - `op_call_net`
   - `op_put_net`
   - `op_cp_net`
   - `stock_fut_legal_net`
-- `catch_up_refresh()` status now reports incomplete only when `daily_summary` was not
-  generated, instead of treating `fut=70/73` as an automatic failure.
-- `/api/comprehensive` now returns `last_summary_date`, and the header shows both raw data
-  date and comprehensive-summary date.
+- `catch_up_refresh()` 現在只在 `daily_summary` 沒有產生時回報 incomplete，不再把
+  `fut=70/73` 視為自動失敗。
+- `/api/comprehensive` 新增回傳 `last_summary_date`，表頭同時顯示原始資料日期與綜合整理日期。
 
-#### Fixed: implausible TWII close could pollute the comprehensive table
-- User annotation caught `10,040.72` in the `加權指數` cell for 2026-05-07.
-- Root cause: refresh trusted `twii_close` from source payloads without comparing it to
-  nearby market context.
-- Fix: `twii_close` now prefers TWSE `FMTQIK`, falls back to FinMind, and is accepted only
-  if it is plausible versus TX close (`<= 20%` gap). Implausible values are dropped and
-  logged.
-- Re-ran `refresh('2026-05-07')`; `daily_summary.twii_close` is now `41,933.78`.
+#### 修正：避免不合理的加權指數收盤值污染綜合整理
+- 使用者用註解指出 2026-05-07 的 `加權指數` 欄位出現 `10,040.72`，明顯抓錯值。
+- 核心原因：refresh 直接信任來源 payload 的 `twii_close`，沒有拿附近市場資料做合理性比對。
+- 修正後 `twii_close` 優先使用 TWSE `FMTQIK`，失敗時才 fallback 到 FinMind，且必須與台指期收盤價差距
+  `<= 20%` 才接受；不合理數值會被丟棄並寫入 log。
+- 已重跑 `refresh('2026-05-07')`，`daily_summary.twii_close` 現為 `41,933.78`。
 
-#### Verification
+#### 驗證
 - `python -m py_compile app\main.py app\refresh.py`
 - `refresh('2026-05-07')`
-- `/api/comprehensive` top row:
+- `/api/comprehensive` 第一列：
   - `view_date = 2026-05-08`
   - `date = 2026-05-07`
   - `twii_close = 41,933.78`

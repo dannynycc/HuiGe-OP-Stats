@@ -4,10 +4,10 @@
 
 版本紀錄見 [CHANGELOG.md](CHANGELOG.md)。
 
-> Codex handoff note: Codex first took over this repo on 2026-05-07 16:40:44 +08:00.
-> Future Codex releases should mark Codex-modified files with Codex + Taipei timestamp,
-> scan all `*.md`, update README/CHANGELOG as needed, and tag using the existing
-> `vX.Y.Z` naming rule.
+> Codex 交接註記：Codex 於 2026-05-07 16:40:44 +08:00 第一次接手此 repo。
+> 後續由 Codex 發版時，需在 Codex 修改的檔案標註 `Codex` 與台北時間，
+> 發版前掃過所有 `*.md`，視情況更新 README / CHANGELOG 與必要文件，
+> 並依既有 `vX.Y.Z` 命名規則打 tag。
 
 ## 目的
 
