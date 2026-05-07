@@ -167,7 +167,7 @@ stop.bat    # 停掉
   - **zoom-out 上限 = 全部 data 跨度** (v0.10.42, clamp 到 [xs[0], xs[last]])
   - 線圖用 uPlot CDN, scatter 用 vanilla canvas
 
-### Refresh 行為 (v0.10.27 起 catch-up mode, v0.10.37 統一兩 view, v0.10.51 修夜盤)
+### Refresh 行為 (v0.10.27 起 catch-up mode, v0.10.37 統一兩 view, v0.10.55 修 completeness)
 - 兩 view (主表 / 綜合整理) Refresh button 行為**完全一致**:
   - 都 `POST /api/refresh` (no date param)
   - catch_up_refresh: 補 last_db_date+1 ~ today 所有 weekdays
@@ -177,13 +177,18 @@ stop.bat    # 停掉
   - **日盤未收盤時不寫 daily_summary** (v0.10.51): 早上跑 refresh, fut_price 早盤
     quote 已釋出但 op_legal day < 30 row → 跳過 daily_summary 寫入 (= 綜合整理
     13:30 收盤前不顯示今天 row)
+  - **綜合整理完整性看核心欄位，不看 TAIFEX 商品總數** (v0.10.55):
+    若交易所少了不影響綜合表的商品（例如 `東證期貨`），但 `op_legal_net`、CALL/PUT/CP、
+    股票期貨法人淨部位等核心欄位都算得出來，仍會寫入 `daily_summary`
 - API 仍保留 `?date=YYYY-MM-DD` (= override single-day) + `?catch_up=false` 給 backend testing
 - UI: 跑時轉圈 spinner + 「抓取資料中…」 (v0.10.38)
-- Status 白話訊息 (v0.10.38): 「資料還沒收完 (期貨 70/73) — 等 14:30 收盤後再按一次」 etc.
+- Status 白話訊息 (v0.10.38, v0.10.55 更新): 以 `daily_summary` 是否生成為準，
+  不再把 `fut_legal` 商品總數 70/73 直接視為錯誤
 - 三層正確性防護:
   1. Endpoint `actual_date == target` 防 stale (year-bug guard)
-  2. Row count sanity: op=30 / fut=73 才算完整
+  2. Summary-field sanity: op day row count + 綜合表核心欄位都必須可計算
   3. Conflict detection: snapshot DB before refresh, 比對 9 cols diff > 0.5% 列出
+  4. TWII sanity: 加權指數優先 TWSE FMTQIK、fallback FinMind，且需與 TX close 差距合理
 - 跑完 outlier audit on 補的 dates (day-over-day mkt_cap / margin vs TWII)
 - 兩 view (主表 / 綜合整理) 都 query `daily_summary`, refresh 後**自動 reload** (無需 Ctrl+F5, v0.10.28)
 - 兩 view header 都有 Refresh button (主表 / 綜合整理 都可 trigger refresh)
@@ -206,7 +211,8 @@ stop.bat    # 停掉
 - **電子選擇權月選結算日 highlight**：那 row 整列淡黃 (`#FEF3C7`)，hover 變 amber
 - **色階 (融資餘額佔市值比)**：上市/上櫃 各自獨立綠 → 黃 → 紅 漸層
 - **窄 viewport** (≤1500px) 自動橫向 scroll，每欄 nowrap fit
-- **Header**: Refresh button + 回主表 button + 資料日期/上次 refresh info (v0.10.35)
+- **Header**: Refresh button + 回主表 button + 資料日期 / 綜合整理日期 / 上次 refresh info
+  (v0.10.35, v0.10.55 加 `last_summary_date`)
 - **「For 開盤前看」cell 可 click** → 跳主表該 view_date (v0.10.35)
 
 ## Backfill (歷史資料抓取)
@@ -230,18 +236,19 @@ python scripts/backfill.py --dates 2024-03-15,2024-03-18
 ## 已驗證資料正確性
 
 ### Backfill 涵蓋範圍 (v0.10.x 現況)
-- DB 涵蓋 **2020-01-02 ~ 2026-05-06**，共 **1,537 個 trading days**
+- DB 涵蓋 **2020-01-02 ~ 2026-05-07**，共 **1,538 個 trading days**
 - 2023/05/05 起 TAIFEX 直抓 (TX/TE/TF/op/fut)
 - 2020/01 ~ 2023/05/04 用 FinMind (TaiwanFuturesDaily + Options/Futures Institutional)
-- 加權指數 1536 days 全段用 FinMind `TaiwanStockPrice` data_id='TAIEX'
-- 上市總市值 1536 days 全段 (115 official + 1421 interp via 週報 + TWII)
+- 加權指數 1538 days 全段用 TWSE FMTQIK / FinMind `TaiwanStockPrice` data_id='TAIEX'
+- 上市總市值 1538 days 全段 (263 official + 1275 interp via 週報 + TWII)
 - 全部從官方 / 第三方 endpoints 真實抓取（非 Excel migration）
 - TAIFEX endpoint cutoff = **2023/05/05**，更早只能用 FinMind (有 sub-product 限制)
 - **仍缺**：2020-2023/05 段 信用餘額 (TWSE+TPEX) / 上櫃總市值 / 個股期合計法人
   + 2023-05-05 後 11 個 dates 也缺 信用餘額 (詳「已知尚未實作」段)
 
 ### Sanity check 結果
-- **Row count 一致性**：319 days 全部 op_legal day=30、fut_legal day=73，0 anomaly
+- **Row count / summary 一致性**：歷史段 op_legal day=30；`daily_summary` 以綜合表核心欄位
+  完整為準，不再假設每日 `fut_legal` 商品總數一定是 73
 - **連續性**：5 個 gap > 4 天 全部對應預期 holiday cluster（春節 ×2、清明 ×2、勞動 ×1）
 - **隨機 sample 重 fetch**：5 個隨機 2025 dates 重打 endpoint 跟 DB **100% match**（net_lots、net_amt、oi_net_lots 三欄）
 - **Holiday 對齊 TWSE 公告**：2025 18 個 weekday holiday，DB 跟 TWSE 公告
@@ -271,10 +278,11 @@ Excel 慣例。已驗證 14 個 cross-holiday absorbing dates 全部 day=30 nigh
 - 損益圖（Excel「損益圖」sheet 的 9 checkbox S1-S3/U1-U6 互斥邏輯）— 用戶決定不做
 - 自動排程 / 定時 refresh — 用戶決定不做
 
-## 資料完整度 (v0.10.42 ALL CLEAN, 1537 dates × 18 cols)
+## 資料完整度 (v0.10.55, 1538 dates × 18 cols)
 
-`scripts/full_sweep_all_cols.py` 跑完全段 endpoint cross-check:
-- **0 mismatch / 0 failed** — DB 跟 endpoint 真值 100% 一致
+`scripts/full_sweep_all_cols.py` 曾於 v0.10.42 跑完全段 endpoint cross-check:
+- **0 mismatch / 0 failed** — 歷史段 DB 跟 endpoint 真值 100% 一致
+- v0.10.55 spot-check：2026-05-07 `daily_summary` 已生成，`twii_close=41,933.78`
 
 
 

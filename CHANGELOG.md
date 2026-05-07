@@ -1,5 +1,46 @@
 # Changelog
 
+## [v0.10.55] - 2026-05-07 16:25
+
+### Fixed: refresh completeness should follow the comprehensive table, not TAIFEX product count
+
+#### User report
+- `/comprehensive` header showed `資料日期 2026-05-07`, but the first row was still
+  `前一日日盤Data = 2026/5/6`.
+- Root cause: raw `op_legal` day data for 2026-05-07 was present (`op_day=30`), but
+  `fut_legal` day had 70 rows because TAIFEX omitted unrelated `東證期貨` rows. The old
+  guard required `fut_day >= 73`, so `daily_summary` was not written.
+
+#### Fix
+- `write_to_db()` now gates `daily_summary` on the fields the comprehensive view actually
+  needs:
+  - `op_legal_net`
+  - `op_call_net`
+  - `op_put_net`
+  - `op_cp_net`
+  - `stock_fut_legal_net`
+- `catch_up_refresh()` status now reports incomplete only when `daily_summary` was not
+  generated, instead of treating `fut=70/73` as an automatic failure.
+- `/api/comprehensive` now returns `last_summary_date`, and the header shows both raw data
+  date and comprehensive-summary date.
+
+#### Fixed: implausible TWII close could pollute the comprehensive table
+- User annotation caught `10,040.72` in the `加權指數` cell for 2026-05-07.
+- Root cause: refresh trusted `twii_close` from source payloads without comparing it to
+  nearby market context.
+- Fix: `twii_close` now prefers TWSE `FMTQIK`, falls back to FinMind, and is accepted only
+  if it is plausible versus TX close (`<= 20%` gap). Implausible values are dropped and
+  logged.
+- Re-ran `refresh('2026-05-07')`; `daily_summary.twii_close` is now `41,933.78`.
+
+#### Verification
+- `python -m py_compile app\main.py app\refresh.py`
+- `refresh('2026-05-07')`
+- `/api/comprehensive` top row:
+  - `view_date = 2026-05-08`
+  - `date = 2026-05-07`
+  - `twii_close = 41,933.78`
+
 ## [v0.10.54] - 2026-05-07 08:07
 
 ### v1 research 7-round self-audit — 大部分 finding 死亡

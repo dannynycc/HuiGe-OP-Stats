@@ -348,9 +348,10 @@ async function load() {
   const info = document.getElementById("refreshInfo");
   if (info) {
     const dd = r.last_data_date || "—";
+    const sd = r.last_summary_date || "—";
     const lr = r.last_refresh;
     const lrTxt = lr ? `${lr.ts.replace("T"," ")} ${lr.ok ? "✓" : "✗"}` : "—";
-    info.textContent = `資料日期 ${dd} · 上次 refresh ${lrTxt}`;
+    info.textContent = `資料日期 ${dd} · 綜合整理 ${sd} · 上次 refresh ${lrTxt}`;
   }
   const rows = r.rows || [];
   if (!rows.length) {

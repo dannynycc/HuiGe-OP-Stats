@@ -279,10 +279,8 @@ def catch_up_refresh(today: date | None = None) -> dict[str, Any]:
 
         if op_n == 0 and fut_n == 0:
             out["status"] = "skipped (holiday or pre-release)"
-        elif op_n < 30 or fut_n < 73:
-            # Standard counts: op_legal day=30 / fut_legal day=73 (verified across recent dates)
-            # Less = endpoint partial release (still trading) or holiday-cluster anomaly
-            out["status"] = f"INCOMPLETE (op={op_n}/30, fut={fut_n}/73) — partial release, retry later"
+        elif not after:
+            out["status"] = f"INCOMPLETE (op={op_n}, fut={fut_n}) - daily_summary not generated"
         else:
             out["status"] = f"ok (op={op_n} fut={fut_n})"
         out["target_date"] = d
@@ -572,10 +570,31 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
         # twii_close / mkt_cap_source must be IN the cols list with carry-over,
         # otherwise refresh() destroys those fields each time.
         summary = compute_daily_summary(date_dash, results)
-        # TWII: prefer TWSE FMTQIK (in fetch_turnover payload), fall back to FinMind
-        twii_v = (results.get("twse_turnover") or {}).get("twii_close")
-        if twii_v is None:
-            twii_v = (results.get("twii_close") or {}).get("twii_close")
+        # TWII: prefer TWSE FMTQIK (in fetch_turnover payload), fall back to
+        # FinMind. Guard against stale/misaligned endpoint values by comparing
+        # with TX close; the cash index and TX close should not be wildly apart.
+        twii_from_turnover = (results.get("twse_turnover") or {}).get("twii_close")
+        twii_from_finmind = (results.get("twii_close") or {}).get("twii_close")
+        tx_close = summary.get("tx_close")
+
+        def _plausible_twii(v: Any) -> bool:
+            if v is None:
+                return False
+            if tx_close is None:
+                return True
+            return abs(float(v) - float(tx_close)) / float(tx_close) <= 0.2
+
+        twii_v = twii_from_turnover if _plausible_twii(twii_from_turnover) else None
+        if twii_v is None and _plausible_twii(twii_from_finmind):
+            twii_v = twii_from_finmind
+        if (
+            twii_v is None
+            and (twii_from_turnover is not None or twii_from_finmind is not None)
+        ):
+            log.warning(
+                "drop implausible twii_close for %s: twse=%s finmind=%s tx=%s",
+                date_dash, twii_from_turnover, twii_from_finmind, tx_close,
+            )
         summary["twii_close"] = twii_v
         # mkt_cap_source: 'official' if we just got it from homeApi, else None
         # (post-aggregate may set 'interp' after this write)
@@ -587,18 +606,25 @@ def write_to_db(date_dash: str, results: dict[str, Any]) -> None:
         if tp_h.get("actual_date") == date_dash:
             summary["tpex_index_close"] = tp_h.get("tpex_index_close")
 
-        # Day-session completeness check: 必須 op_legal day=30 + fut_legal day=73
-        # 才算「日盤已收盤」, 否則早上跑 refresh 會用 fut_price 早盤 quote 寫進
-        # tx_close 造成綜合整理顯示「明明還沒收盤」的 partial row
+        # Day-session completeness check.
+        # The comprehensive table only needs the core summary fields below.
+        # Do not depend on total fut_legal product count because TAIFEX can add,
+        # remove, or omit unrelated products without affecting this view.
         op_day_count = con.execute(
             "SELECT COUNT(*) FROM op_legal WHERE date=? AND daynight='day'",
             (date_dash,)
         ).fetchone()[0]
-        fut_day_count = con.execute(
-            "SELECT COUNT(*) FROM fut_legal WHERE date=? AND daynight='day'",
-            (date_dash,)
-        ).fetchone()[0]
-        day_complete = (op_day_count >= 30 and fut_day_count >= 73)
+        required_summary_fields = (
+            "op_legal_net",
+            "op_call_net",
+            "op_put_net",
+            "op_cp_net",
+            "stock_fut_legal_net",
+        )
+        day_complete = (
+            op_day_count >= 30
+            and all(summary.get(c) is not None for c in required_summary_fields)
+        )
 
         existing = con.execute(
             "SELECT * FROM daily_summary WHERE date = ?", (date_dash,)

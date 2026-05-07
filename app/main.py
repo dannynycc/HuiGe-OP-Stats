@@ -160,9 +160,11 @@ def api_comprehensive(response: Response) -> dict[str, Any]:
     with connect() as con:
         last = con.execute("SELECT * FROM refresh_log ORDER BY id DESC LIMIT 1").fetchone()
         last_dd = con.execute("SELECT MAX(date) FROM op_legal WHERE daynight='day'").fetchone()
+        last_summary = con.execute("SELECT MAX(date) FROM daily_summary").fetchone()
     return {
         "rows": rows,
         "last_data_date": last_dd[0] if last_dd else None,
+        "last_summary_date": last_summary[0] if last_summary else None,
         "last_refresh": dict(last) if last else None,
     }
 
