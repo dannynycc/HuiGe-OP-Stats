@@ -2,7 +2,23 @@
 
 期交所三大法人選擇權/期貨日夜盤數據 + 上市/上櫃信用交易彙整 — 網頁版（取代輝哥 Excel）。
 
-版本紀錄見 [CHANGELOG.md](CHANGELOG.md)。
+## 🔗 直接看這裡
+
+### **https://dannynycc.github.io/HuiGe-OP-Stats/**
+
+| 頁面 | 網址 | 看什麼 |
+|---|---|---|
+| 主表 | [/](https://dannynycc.github.io/HuiGe-OP-Stats/) | 柴柴 法人部位彙整（每天開盤前看的 6 列總表） |
+| 綜合整理 | [/comprehensive.html](https://dannynycc.github.io/HuiGe-OP-Stats/comprehensive.html) | 歷史總表（每天一列，往回看全部） |
+| 走勢圖 | [/chart.html](https://dannynycc.github.io/HuiGe-OP-Stats/chart.html) | 融資/法人部位 vs 指數的走勢圖 |
+
+- **每天自動更新 3 次**（台北 15:00 / 21:00 / 07:00），打開就是最新，不用按任何東西。
+- 想手動立刻更新：GitHub repo → **Actions** → `update-data` → **Run workflow**。
+- 主表左上角可選日期，回看任何一天「開盤前」的部位。
+
+---
+
+> 以下是給開發者 / 維護者看的技術文件。版本紀錄見 [CHANGELOG.md](CHANGELOG.md)。
 
 > Codex 交接註記：Codex 於 2026-05-07 16:40:44 +08:00 第一次接手此 repo。
 > 後續由 Codex 發版時，需在 Codex 修改的檔案標註 `Codex` 與台北時間，
