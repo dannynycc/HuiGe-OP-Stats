@@ -71,8 +71,14 @@ build_dashboard() 套 Excel 公式 (排除投信，等效大台/電/金、微台
 網站以**靜態檔**形式發佈在 GitHub Pages（從 `main` 的 `/docs` 資料夾），由
 GitHub Actions 定時重建，無需自架伺服器長時間開機。
 
+> ⚠️ **觸發來源（2026-06-23 更正）**：本 repo 的 GitHub 內建 `schedule` cron 實測
+> **不會觸發**（push / 手動 / pages build 都正常，唯獨 schedule 0 觸發）。故每日更新
+> **主力改用外部排程器**（cron-job.org → 打 `workflow_dispatch` API），`update.yml` 內
+> 的 3 班 cron 僅作備援。設定與排查紀錄見 **[docs/SCHEDULING.md](SCHEDULING.md)**。
+
 ```
-GitHub Actions cron（台北 15:00 / 21:00 / 07:00 = UTC 07/13/23）
+外部排程器 cron-job.org（台北 15:00 / 21:00 / 07:00）→ workflow_dispatch
+   │  （備援：update.yml 內 schedule cron :17，若 GitHub 排程器活過來才會幫忙）
    │  還原 data.db（actions/cache，rolling key；cache miss 則解壓 data_seed.db.gz）
    ▼
 catch_up_refresh()  抓 last_db_date+1 ~ today 的缺漏
@@ -91,6 +97,8 @@ commit & push docs/ 回 main  →  GitHub Pages 自動重建
 - **種子保鮮**：`refresh-seed.yml` 每週日（台北 08:00）把種子重壓成最新版，
   確保萬一 cache 掉時還原不用補抓太多天。
 - **手動觸發**：Actions 頁面 → `update-data`（或 `refresh-seed`）→ Run workflow。
+- **每日自動觸發（主力）**：外部排程器 cron-job.org 打 `workflow_dispatch` API。
+  設定步驟見 [docs/SCHEDULING.md](SCHEDULING.md)。（GitHub 內建 cron 此 repo 不觸發。）
 - 本機重建 docs/：`python -m scripts.export_static`
 
 ## 資料來源（12 個 endpoint）

@@ -4,19 +4,20 @@ name: update-data
 # GitHub Pages（從 main 的 /docs 發佈）會自動重建網站。
 #
 # cron 一律是 UTC。台北 = UTC + 8。
-# 刻意避開整點(:00)：GitHub 對整點(每小時開頭=高負載)的排程會大幅延遲甚至直接
-# 丟棄(官方已知限制)，改用非整點分鐘可大幅提升「自動觸發」可靠度。
-#   台北 15:17  →  UTC 07:17
-#   台北 21:17  →  UTC 13:17
-#   台北 07:17  →  UTC 23:17（前一天 UTC，但每天都跑所以等效）
+#
+# ⚠️ 2026-06-23 實測：本 repo 的 GitHub 內建排程(schedule)觸發器「不會跑」——
+#   push / 手動 / pages build 都正常，唯獨 schedule 事件 0 觸發（兩次提前量充足
+#   的測試班皆未觸發）。原因不明（疑似新加排程未被 GitHub 排程器納入 / 排程器本身
+#   不可靠）。∴ 自動更新「主力」改走外部排程器（cron-job.org → 打 workflow_dispatch
+#   API），設定見 docs/SCHEDULING.md。下面 3 班 cron 保留當「備援」（已避開整點 :00；
+#   萬一 GitHub 排程器哪天活過來可加減幫忙，資料冪等多跑無害）。
+#   台北 15:17 / 21:17 / 07:17  =  UTC 07:17 / 13:17 / 23:17
 on:
   schedule:
     - cron: "17 7 * * *"
     - cron: "17 13 * * *"
     - cron: "17 23 * * *"
-    # 【暫時·測試用，確認雲端排程能自動觸發後即刪】UTC 08:42 = 台北 16:42。
-    - cron: "42 8 * * *"
-  workflow_dispatch:      # 也允許手動觸發
+  workflow_dispatch:      # 外部排程器(cron-job.org)與手動觸發都走這個
 
 permissions:
   contents: write          # 需要寫回 main
