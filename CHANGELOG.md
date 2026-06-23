@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.11.2] - 2026-06-23 11:41
+
+### 新增：種子每週自動保鮮（refresh-seed.yml）
+
+把「急救包」`data_seed.db.gz` 從一次性快照升級為每週自動更新：
+
+- 新增 `.github/workflows/refresh-seed.yml`：每週日（台北 08:00）從 Actions cache
+  還原最新 `data.db`（只讀）→ `gzip -9` 重壓種子 → 有變動才 commit。
+- 與 `update-data` 共用 concurrency group，避免同時 push 衝突。
+- 效果：萬一 cache 掉了，`catch_up` 要補抓的天數從「種子建立至今」縮短為「最多一週」。
+- 平常用不到，純屬保險的保險。
+
 ## [v0.11.1] - 2026-06-23 11:28
 
 ### 修正：消除 docs/ 每次 CI run 的大量 git churn

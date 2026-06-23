@@ -69,9 +69,11 @@ commit & push docs/ 回 main  →  GitHub Pages 自動重建
 - **雙模式前端**：`app/static` 是單一來源；本機 FastAPI 跑時走 `/api/*`，
   `docs/` 版本注入 `window.__STATIC__=true` 改讀 `./data/*.json`。
 - **state 策略**：`data.db`（20MB）**不進 git**，靠 Actions cache 在 run 之間帶著走；
-  另 commit 一份壓縮種子 `data/data_seed.db.gz`（~6MB，cache 掉時自我修復）。
-  對外歷史記錄 = commit 在 `docs/` 的 JSON。
-- **手動觸發**：Actions 頁面 → `update-data` → Run workflow。
+  另 commit 一份壓縮種子 `data/data_seed.db.gz`（~6MB，cache 掉時解壓 + `catch_up`
+  自我修復）。對外歷史記錄 = commit 在 `docs/` 的 JSON。
+- **種子保鮮**：`refresh-seed.yml` 每週日（台北 08:00）把種子重壓成最新版，
+  確保萬一 cache 掉時還原不用補抓太多天。
+- **手動觸發**：Actions 頁面 → `update-data`（或 `refresh-seed`）→ Run workflow。
 - 本機重建 docs/：`python -m scripts.export_static`
 
 ## 資料來源（12 個 endpoint）

@@ -1,0 +1,48 @@
+name: refresh-seed
+
+# 每週把「急救包」data_seed.db.gz 換成最新版，讓萬一 cache 掉時的還原更快。
+# 平常用不到；它只是保險的保險。
+#
+# 做法：從 cache 還原最新 data.db（由 update-data 一天 3 次保持新鮮）→ 重新壓縮
+# → 若有變動就 commit。不抓資料、不動 cache。
+on:
+  schedule:
+    - cron: "0 0 * * 0"     # 台北週日 08:00（UTC 週日 00:00）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-data        # 與 update-data 共用 → 不會同時 push，避免衝突
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 還原 data.db（cache，只讀）
+        uses: actions/cache/restore@v4
+        with:
+          path: data/data.db
+          key: dbstate-restore       # 故意不精確命中，靠 restore-keys 取最新
+          restore-keys: dbstate-
+
+      - name: 重壓種子並 commit
+        run: |
+          if [ ! -f data/data.db ]; then
+            echo "cache miss → 跳過（保留現有種子）"
+            exit 0
+          fi
+          gzip -9 -c data/data.db > data/data_seed.db.gz
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/data_seed.db.gz
+          if git diff --cached --quiet; then
+            echo "種子無變動，跳過 commit"
+          else
+            git commit -m "chore(seed): refresh data_seed.db.gz $(date -u +%Y-%m-%d)"
+            git push
+          fi
