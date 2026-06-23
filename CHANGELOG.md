@@ -1,5 +1,29 @@
 # Changelog
 
+## [v0.11.6] - 2026-06-23 12:12
+
+### 修正：連假夜盤跑錯日期（dashboard 該日夜盤欄空白）— 自動重貼 + 自癒
+
+**問題**：「For 2026/6/22(一) 開盤前看」的 2026/6/18(四) 夜盤口數/成本整欄空白。
+
+**根因（已用 TAIFEX ground truth 驗證）**：夜盤的歸屬規則是「掛在 TAIFEX 該場結算日
+的前一個交易日」。6/19 是端午節休市，6/18 與 6/19 的夜盤查詢都指向同一場（6/22）。
+refresh 跑 6/19（假日 weekday）時把該場寫進 6/19；6/18 當時 6/22 尚未開盤所以撲空，
+之後 catch-up 只重抓 last_db 沒再補 6/18 → 夜盤錯位到假日 6/19、6/18 變空白。
+全 repo 並無 README 宣稱的「重 label」程式碼（當初應是手動 SQL，未自動化）。
+
+**修正**：
+- `refresh.py` 新增 `_reattribute_cross_holiday_night()`：自動找出「有夜盤但無日盤
+  （=假日）」的日期，把夜盤 rows（op_legal + fut_legal）搬回前一個交易日（PK-safe：
+  prev 已有夜盤則刪重複，否則 UPDATE date），並用 `build_dashboard` 重算該日
+  `daily_summary` 的 `fut_pre_open_net` / `op_pre_open_cp_net`。
+- 接進每次 `refresh()` 流程 → **CI 每次自動跑、自癒**，未來連假不再復現。
+- 冪等；正常交易日不受影響。
+
+**驗證**：6/18 夜盤 = 外資買權 336（對齊 TAIFEX）、開盤前部位 (70,706)、開盤前多空
+4,891；6/19 清空；6/17 / 6/22 不動；二次執行結果相同；全 DB 已無 night-without-day 殘留。
+headless Chrome 截圖確認 6/18 夜盤欄已填上。
+
 ## [v0.11.5] - 2026-06-23 11:59
 
 ### 修改：靜態模式把「Refresh」按鈕改成顯示「下次自動更新時間」

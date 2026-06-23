@@ -391,6 +391,14 @@ def refresh(target_date: str | None = None) -> dict[str, Any]:
         log.warning("post-refresh aggregate failed for %s: %r", target_date, e)
         errors.append(f"post_refresh: {e!r}")
 
+    # 連假時 TAIFEX 把「假期前最後交易日的夜盤」label 在假日當天（該日只有 night、
+    # 無 day）。自動把這些夜盤重貼回前一個交易日，符合柴柴/輝哥 Excel 慣例。
+    try:
+        _reattribute_cross_holiday_night()
+    except Exception as e:
+        log.warning("cross-holiday night reattribute failed: %r", e)
+        errors.append(f"reattribute_night: {e!r}")
+
     elapsed = time.time() - started
     with connect() as con:
         con.execute(
@@ -458,6 +466,71 @@ def _post_refresh_aggregate(date_dash: str) -> None:
                 )
         log.info("post-refresh aggregate done: %s mkt_cap=%s src=%s",
                  date_dash, mkt_cap, src)
+
+
+def _reattribute_cross_holiday_night() -> None:
+    """連假時 TAIFEX 把「假期前最後交易日的夜盤」label 在假日當天（該日只有 night、
+    無 day）。把這些夜盤 rows 搬回前一個有 day 的交易日，並重算該日 daily_summary
+    的開盤前欄位。冪等：已正確的日子不動（沒有 night-without-day 就是 no-op）。
+    """
+    moved_to: set[str] = set()
+    with connect() as con:
+        # 「有 night 但完全沒有 day」= 假日吸收了夜盤
+        holidays = [r[0] for r in con.execute("""
+            SELECT DISTINCT n.date FROM (
+                SELECT date FROM op_legal  WHERE daynight='night'
+                UNION
+                SELECT date FROM fut_legal WHERE daynight='night'
+            ) n
+            WHERE NOT EXISTS (SELECT 1 FROM op_legal  d WHERE d.date=n.date AND d.daynight='day')
+              AND NOT EXISTS (SELECT 1 FROM fut_legal d WHERE d.date=n.date AND d.daynight='day')
+            ORDER BY n.date
+        """)]
+        for h in holidays:
+            prev = con.execute(
+                "SELECT MAX(date) FROM op_legal WHERE date<? AND daynight='day'", (h,)
+            ).fetchone()[0]
+            if not prev:
+                continue
+            for tbl in ("op_legal", "fut_legal"):
+                prev_has_night = con.execute(
+                    f"SELECT 1 FROM {tbl} WHERE date=? AND daynight='night' LIMIT 1", (prev,)
+                ).fetchone()
+                if prev_has_night:
+                    # prev 已有夜盤 → h 的是重複，刪掉避免 PK 衝突
+                    con.execute(f"DELETE FROM {tbl} WHERE date=? AND daynight='night'", (h,))
+                else:
+                    con.execute(
+                        f"UPDATE {tbl} SET date=? WHERE date=? AND daynight='night'", (prev, h)
+                    )
+            moved_to.add(prev)
+        con.commit()
+
+    # 夜盤搬動後，重算受影響交易日的 daily_summary 開盤前欄位（comprehensive 用到）。
+    # 用 build_dashboard 的結果回寫，避免公式分叉。
+    for prev in moved_to:
+        try:
+            _recompute_pre_open_fields(prev)
+            log.info("reattributed cross-holiday night → %s", prev)
+        except Exception as e:
+            log.warning("recompute pre_open for %s failed: %r", prev, e)
+
+
+def _recompute_pre_open_fields(date_dash: str) -> None:
+    """夜盤搬動後，用 build_dashboard 重算 daily_summary 的 fut_pre_open_net /
+    op_pre_open_cp_net（兩者皆含夜盤），保持與主表一致。"""
+    from .dashboard import build_dashboard
+    bd = build_dashboard(date_dash)
+    tx = next((r for r in bd.get("rows", []) if r.get("product") == "台指期"), None)
+    call = next((r for r in bd.get("rows", []) if r.get("product") == "買權CALL"), None)
+    fut_pre = tx.get("pre_open_lots") if tx else None
+    op_cp = call.get("pre_open_cp") if call else None
+    with connect() as con:
+        con.execute(
+            "UPDATE daily_summary SET fut_pre_open_net=?, op_pre_open_cp_net=? WHERE date=?",
+            (fut_pre, op_cp, date_dash),
+        )
+        con.commit()
 
 
 def _safe_rows(payload: Any) -> list[dict]:
