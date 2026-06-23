@@ -13,14 +13,17 @@ function setStatus(text, kind = "") {
 // 本機 FastAPI 模式下 __STATIC__ undefined → 走原本的 /api/* 路徑。
 const STATIC = window.__STATIC__ === true;
 const DATA_BASE = "./data";
-let _datesCache = null;
+let _datesMeta = null;
 
-// 取得「日盤交易日」清單 (ascending)，用來把 view_date 換算成 data_date。
+// 取得 dates.json（{dates, last_refresh}）。dates 用來把 view_date 換算成
+// data_date；last_refresh 供歷史視圖顯示（per-date 檔本身不含時間戳）。
+async function getDatesMeta() {
+  if (_datesMeta) return _datesMeta;
+  _datesMeta = await fetch(`${DATA_BASE}/dates.json?_=${Date.now()}`).then(r => r.json());
+  return _datesMeta;
+}
 async function getDates() {
-  if (_datesCache) return _datesCache;
-  const r = await fetch(`${DATA_BASE}/dates.json?_=${Date.now()}`).then(r => r.json());
-  _datesCache = r.dates || [];
-  return _datesCache;
+  return (await getDatesMeta()).dates || [];
 }
 
 // 複製 server 端 `MAX(date) < view_date AND daynight='day'` 的邏輯：
@@ -202,6 +205,10 @@ async function loadView(viewDate) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     });
+    // 歷史視圖的 per-date 檔不含 last_refresh（避免 git churn）→ 從 dates.json 取。
+    if (STATIC && viewDate && !r.last_refresh) {
+      r.last_refresh = (await getDatesMeta()).last_refresh;
+    }
     $("#viewDate").value = r.view_date;
     render(r);
 
@@ -257,7 +264,7 @@ async function doRefresh() {
   const btn = $("#btnRefresh"); btn.disabled = true;
   // 靜態模式：沒有後端可抓，只重新載入目前畫面（資料由雲端 cron 定時更新）。
   if (STATIC) {
-    _datesCache = null;   // 清快取，確保抓到最新日期清單
+    _datesMeta = null;   // 清快取，確保抓到最新日期清單
     try {
       await loadView($("#viewDate").value);
       setStatus("已重新整理（資料由雲端定時更新）", "ok");

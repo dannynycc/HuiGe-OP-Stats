@@ -44,9 +44,11 @@ class _Resp:
 
 def _write_json(path: Path, obj: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    # newline="\n" → Windows / Linux 產出一致，避免 CRLF/LF 造成 git churn。
     path.write_text(
         json.dumps(obj, ensure_ascii=False, default=str),
         encoding="utf-8",
+        newline="\n",
     )
 
 
@@ -64,7 +66,9 @@ def export_data() -> int:
     # 1) comprehensive.json — 直接呼叫真正的端點，保證 1:1 一致
     _write_json(DATA / "comprehensive.json", api_comprehensive(_Resp()))
 
-    # 2) 日盤交易日清單（ascending）— 給前端把 view_date 換算成 data_date
+    # 2) 日盤交易日清單（ascending）— 給前端把 view_date 換算成 data_date。
+    #    last_refresh（全域時間戳）只放這裡 + latest.json，**不**塞進每個 per-date
+    #    檔，否則每次 refresh 都會讓全部 dashboard 檔 dirty → git 大量 churn。
     with connect() as con:
         day_dates = [
             r[0]
@@ -74,14 +78,14 @@ def export_data() -> int:
             )
         ]
         last = _last_refresh(con)
-    _write_json(DATA / "dates.json", {"dates": day_dates})
+    _write_json(DATA / "dates.json", {"dates": day_dates, "last_refresh": last})
 
-    # 3) 每個 data_date 一份 dashboard JSON + latest.json（預設視圖）
+    # 3) 每個 data_date 一份 dashboard JSON（確定性，不含時間戳）。
+    #    歷史視圖的 last_refresh 由前端從 dates.json 取。
     for dd in day_dates:
-        payload = build_dashboard(dd)
-        payload["last_refresh"] = last
-        _write_json(DASH / f"{dd}.json", payload)
+        _write_json(DASH / f"{dd}.json", build_dashboard(dd))
 
+    # 4) latest.json（預設視圖）— 這份本就每次 run 變動，保留 last_refresh。
     if day_dates:
         latest = build_dashboard(day_dates[-1])
         latest["last_refresh"] = last
@@ -94,10 +98,12 @@ def export_site() -> None:
     """複製 HTML/JS 到 docs/，改寫路徑並注入 __STATIC__。"""
     DOCS.mkdir(parents=True, exist_ok=True)
 
-    # app.js 原樣複製（它在 runtime 自己看 window.__STATIC__）
+    # app.js 原樣複製（它在 runtime 自己看 window.__STATIC__）。
+    # newline="\n" 統一行尾，避免 Windows 產出 CRLF 與 Linux CI 互相 churn。
     (DOCS / "app.js").write_text(
         (STATIC_SRC / "app.js").read_text(encoding="utf-8"),
         encoding="utf-8",
+        newline="\n",
     )
 
     for name in ("index.html", "comprehensive.html", "chart.html"):
@@ -106,7 +112,7 @@ def export_site() -> None:
             html = html.replace(a, b)
         # marker 必須在任何讀 window.__STATIC__ 的 script 之前 → 放進 <head>
         html = html.replace("<head>", "<head>\n  " + MARKER, 1)
-        (DOCS / name).write_text(html, encoding="utf-8")
+        (DOCS / name).write_text(html, encoding="utf-8", newline="\n")
 
 
 def main() -> None:

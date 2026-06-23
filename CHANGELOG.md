@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.11.1] - 2026-06-23 11:28
+
+### 修正：消除 docs/ 每次 CI run 的大量 git churn
+
+v0.11.0 首次 CI run 出現「1575 files changed」，查出兩個成因並修正：
+
+- **per-date dashboard 檔嵌了全域 `last_refresh` 時間戳** → 每次 refresh 都讓全部
+  1569 檔 dirty。改為：per-date 檔做成**確定性**（不含時間戳），`last_refresh`
+  只放 `dates.json` + `latest.json`；歷史視圖的時間戳由前端從 `dates.json` 取
+  （`app.js` 新增 `getDatesMeta()`）。
+- **CRLF/LF 不一致**：Windows 本機產出 CRLF、Linux CI 產出 LF，互相覆寫整個 HTML。
+  `export_static.py` 改用 `newline="\n"` 統一行尾。
+- 修正後未來每次 CI run 只動 ~4 檔（comprehensive / dates / latest / 當天那一份）。
+- 本機 headless Chrome 重驗歷史視圖（`?view_date=2024-06-03` → data_date 2024-05-31）
+  的「上次 refresh」仍正確顯示。
+
 ## [v0.11.0] - 2026-06-23 11:12
 
 ### 新增：GitHub Pages 靜態網站 + 每日自動更新
