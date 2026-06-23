@@ -217,7 +217,10 @@ async function loadView(viewDate) {
       row.day_lots !== 0 || row.oi_lots !== 0 || row.night_lots !== 0
     );
     const last = r.last_refresh;
-    const lastTxt = last ? `  ·  上次 refresh ${last.ts.replace("T", " ")} ${last.ok ? "✓" : "✗"}` : "";
+    // ts 自 v0.11.8 起一律為台北時間(+08:00)。去掉時區尾碼、明確標「(台北)」，
+    // 不再像舊版那樣顯示雲端 runner 的 UTC 害人誤判成早上。
+    const lastTs = last ? last.ts.replace("T", " ").replace(/[+-]\d{2}:\d{2}$/, "") : "";
+    const lastTxt = last ? `  ·  上次 refresh ${lastTs} (台北) ${last.ok ? "✓" : "✗"}` : "";
     if (!hasAnyData) {
       const hint = STATIC
         ? `資料日期 ${r.date} 尚無 raw 資料（將於下次雲端定時更新時補上）`

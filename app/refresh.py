@@ -6,13 +6,18 @@ import sqlite3
 import time
 import requests
 import urllib3
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Any
 from .db import connect, init_db
 from .scrapers import taifex, twse, tpex
 
 log = logging.getLogger(__name__)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# refresh_log.ts 一律寫「台北時間」。用固定 UTC+8 offset（台灣無日光節約），
+# 不靠 datetime.now() 的「機器當地時間」—— 否則雲端 runner(UTC) 會寫成早 8 小時的
+# 時間，前端顯示就像「早上 9 點」誤導使用者（v0.11.8 修）。亦不需 tzdata 套件。
+TPE = timezone(timedelta(hours=8))
 
 
 def _third_wednesday(year: int, month: int):
@@ -403,7 +408,7 @@ def refresh(target_date: str | None = None) -> dict[str, Any]:
     with connect() as con:
         con.execute(
             "INSERT INTO refresh_log (ts, target_date, ok, errors_json) VALUES (?, ?, ?, ?)",
-            (datetime.now().isoformat(timespec="seconds"),
+            (datetime.now(TPE).isoformat(timespec="seconds"),
              target_date, 1 if not errors else 0, json.dumps(errors, ensure_ascii=False)),
         )
     return {
