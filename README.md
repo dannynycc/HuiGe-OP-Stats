@@ -34,7 +34,7 @@ scrapers (12 endpoints)
 SQLite raw 表 (op_legal / fut_legal / fut_price / credit_*)
     │
     ▼
-build_dashboard() 套 Excel 公式 (排除投信，等效大台/電/金、selecciónes ×20、股期 ÷2)
+build_dashboard() 套 Excel 公式 (排除投信，等效大台/電/金、微台 ×20、股期 ÷2)
     │
     ▼
 /api/dashboard?view_date=YYYY-MM-DD ──→ 單頁 HTML + vanilla JS
@@ -42,10 +42,37 @@ build_dashboard() 套 Excel 公式 (排除投信，等效大台/電/金、selecc
 
 - **後端**：Python 3 + FastAPI + requests + pandas + BeautifulSoup
 - **DB**：SQLite (`data/data.db`)，7 張表
-- **前端**：單頁 HTML + vanilla JS（無 framework，無 chart lib）
-- **無自動排程** — 手動按 refresh 抓當日；`scripts/backfill.py` 抓歷史
+- **前端**：單頁 HTML + vanilla JS（無 framework；走勢圖用 uPlot via CDN）
+- **更新方式**：本機可手動按 refresh 抓當日；**GitHub Actions cron 每日 3 次自動抓**
+  （台北 15:00 / 21:00 / 07:00）並發佈到 GitHub Pages（見下方「GitHub Pages 自動更新」）；
+  `scripts/backfill.py` 抓歷史
 - **Holiday-aware**：`data_date` / `view_date` 都用 DB lookup 自動 skip 假日，
   不需 hardcode holiday list（兒童節、清明、過年、228、元旦、勞動節等都 OK）
+
+## GitHub Pages 自動更新（v0.11.0 起）
+
+網站以**靜態檔**形式發佈在 GitHub Pages（從 `main` 的 `/docs` 資料夾），由
+GitHub Actions 定時重建，無需自架伺服器長時間開機。
+
+```
+GitHub Actions cron（台北 15:00 / 21:00 / 07:00 = UTC 07/13/23）
+   │  還原 data.db（actions/cache，rolling key；cache miss 則解壓 data_seed.db.gz）
+   ▼
+catch_up_refresh()  抓 last_db_date+1 ~ today 的缺漏
+   ▼
+scripts/export_static.py  把 /api/* 輸出倒成 docs/data/*.json + 複製前端到 docs/
+   ▼
+commit & push docs/ 回 main  →  GitHub Pages 自動重建
+```
+
+- **網址**：`https://dannynycc.github.io/HuiGe-OP-Stats/`
+- **雙模式前端**：`app/static` 是單一來源；本機 FastAPI 跑時走 `/api/*`，
+  `docs/` 版本注入 `window.__STATIC__=true` 改讀 `./data/*.json`。
+- **state 策略**：`data.db`（20MB）**不進 git**，靠 Actions cache 在 run 之間帶著走；
+  另 commit 一份壓縮種子 `data/data_seed.db.gz`（~6MB，cache 掉時自我修復）。
+  對外歷史記錄 = commit 在 `docs/` 的 JSON。
+- **手動觸發**：Actions 頁面 → `update-data` → Run workflow。
+- 本機重建 docs/：`python -m scripts.export_static`
 
 ## 資料來源（12 個 endpoint）
 

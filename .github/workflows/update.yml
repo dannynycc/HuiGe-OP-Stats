@@ -1,0 +1,73 @@
+name: update-data
+
+# 定時抓 TAIFEX/TWSE/TPEx → 產生靜態 JSON 到 docs/ → commit 回 main。
+# GitHub Pages（從 main 的 /docs 發佈）會自動重建網站。
+#
+# cron 一律是 UTC。台北 = UTC + 8。
+#   台北 15:00  →  UTC 07:00
+#   台北 21:00  →  UTC 13:00
+#   台北 07:00  →  UTC 23:00（前一天 UTC，但每天都跑所以等效）
+on:
+  schedule:
+    - cron: "0 7 * * *"
+    - cron: "0 13 * * *"
+    - cron: "0 23 * * *"
+  workflow_dispatch:      # 也允許手動觸發
+
+permissions:
+  contents: write          # 需要寫回 main
+
+concurrency:
+  group: update-data       # 不讓多個 run 同時跑（SQLite 不能並行 + 避免 push 衝突）
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 安裝相依套件
+        run: pip install -r requirements.txt
+
+      # data.db 不進 git。用 cache 在每次 run 之間帶著走。
+      # key 用 run_id（每次必 miss）→ 每次都會把更新後的 db 存成新 cache；
+      # restore-keys 前綴會還原「最近一次」的 cache。一天跑 3 次→cache 永遠熱。
+      - name: 還原 data.db（cache）
+        uses: actions/cache@v4
+        with:
+          path: data/data.db
+          key: dbstate-${{ github.run_id }}
+          restore-keys: dbstate-
+
+      - name: cache miss 時解壓種子
+        run: |
+          if [ ! -f data/data.db ]; then
+            echo "cache miss → 解壓 data_seed.db.gz"
+            gunzip -c data/data_seed.db.gz > data/data.db
+          else
+            echo "cache hit → 使用 cached data.db"
+          fi
+
+      - name: 補抓資料（catch_up_refresh）
+        run: |
+          python -c "from app.refresh import catch_up_refresh; import json; print(json.dumps(catch_up_refresh(), ensure_ascii=False, default=str)[:2000])"
+
+      - name: 產生靜態網站到 docs/
+        run: python -m scripts.export_static
+
+      - name: commit & push docs/
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs
+          if git diff --cached --quiet; then
+            echo "docs 無變動，跳過 commit"
+          else
+            git commit -m "chore(data): auto-update $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi

@@ -8,6 +8,31 @@ function setStatus(text, kind = "") {
   status_.className = kind;
 }
 
+// ── 靜態 (GitHub Pages) 模式 ──────────────────────────────────────────
+// docs/ 版本的 index.html 會注入 `window.__STATIC__ = true`。
+// 本機 FastAPI 模式下 __STATIC__ undefined → 走原本的 /api/* 路徑。
+const STATIC = window.__STATIC__ === true;
+const DATA_BASE = "./data";
+let _datesCache = null;
+
+// 取得「日盤交易日」清單 (ascending)，用來把 view_date 換算成 data_date。
+async function getDates() {
+  if (_datesCache) return _datesCache;
+  const r = await fetch(`${DATA_BASE}/dates.json?_=${Date.now()}`).then(r => r.json());
+  _datesCache = r.dates || [];
+  return _datesCache;
+}
+
+// 複製 server 端 `MAX(date) < view_date AND daynight='day'` 的邏輯：
+// view_date X 對應的 data_date = 嚴格小於 X 的最近一個交易日。
+function resolveDataDate(viewDate, dates) {
+  let best = null;
+  for (const d of dates) {
+    if (d < viewDate) best = d; else break;   // dates 已 ascending
+  }
+  return best;
+}
+
 const MD_DAY = ["日", "一", "二", "三", "四", "五", "六"];
 
 function fmtMD(iso) {
@@ -160,7 +185,19 @@ function render(payload) {
 async function loadView(viewDate) {
   setStatus("載入中…");
   try {
-    const url = viewDate ? `/api/dashboard?view_date=${viewDate}` : "/api/dashboard";
+    let url;
+    if (STATIC) {
+      // 靜態模式：讀預先產好的 JSON。view_date 先換算成 data_date。
+      if (viewDate) {
+        const dd = resolveDataDate(viewDate, await getDates());
+        if (!dd) throw new Error(`${viewDate} 之前查無資料`);
+        url = `${DATA_BASE}/dashboard/${dd}.json?_=${Date.now()}`;
+      } else {
+        url = `${DATA_BASE}/dashboard/latest.json?_=${Date.now()}`;
+      }
+    } else {
+      url = viewDate ? `/api/dashboard?view_date=${viewDate}` : "/api/dashboard";
+    }
     const r = await fetch(url).then(r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
@@ -175,10 +212,10 @@ async function loadView(viewDate) {
     const last = r.last_refresh;
     const lastTxt = last ? `  ·  上次 refresh ${last.ts.replace("T", " ")} ${last.ok ? "✓" : "✗"}` : "";
     if (!hasAnyData) {
-      setStatus(
-        `資料日期 ${r.date} 的 raw 資料還沒進 DB → 點「Refresh 抓最新」即可抓 ${r.date}` + lastTxt,
-        "err"
-      );
+      const hint = STATIC
+        ? `資料日期 ${r.date} 尚無 raw 資料（將於下次雲端定時更新時補上）`
+        : `資料日期 ${r.date} 的 raw 資料還沒進 DB → 點「Refresh 抓最新」即可抓 ${r.date}`;
+      setStatus(hint + lastTxt, "err");
     } else {
       setStatus(`資料日期 ${r.date}` + lastTxt, "ok");
     }
@@ -218,6 +255,17 @@ function getRefreshSeverity(r) {
 
 async function doRefresh() {
   const btn = $("#btnRefresh"); btn.disabled = true;
+  // 靜態模式：沒有後端可抓，只重新載入目前畫面（資料由雲端 cron 定時更新）。
+  if (STATIC) {
+    _datesCache = null;   // 清快取，確保抓到最新日期清單
+    try {
+      await loadView($("#viewDate").value);
+      setStatus("已重新整理（資料由雲端定時更新）", "ok");
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
   // Show spinner + "抓取中" text
   const stat = $("#status");
   stat.innerHTML = '<span class="spinner"></span>抓取資料中…';
@@ -248,6 +296,12 @@ $("#viewDate").addEventListener("change", () => {
   _loadTimer = setTimeout(() => loadView(v), 50);
 });
 $("#btnRefresh").addEventListener("click", doRefresh);
+
+// 靜態模式：按鈕語意從「抓最新」改成「重新整理」（抓取由雲端 cron 負責）。
+if (STATIC) {
+  const _b = $("#btnRefresh");
+  if (_b) _b.textContent = "🔄 重新整理";
+}
 
 // Honor ?view_date= in the URL on first load
 const _params = new URLSearchParams(window.location.search);

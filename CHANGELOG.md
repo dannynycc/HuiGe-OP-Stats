@@ -1,5 +1,32 @@
 # Changelog
 
+## [v0.11.0] - 2026-06-23 11:12
+
+### 新增：GitHub Pages 靜態網站 + 每日自動更新
+
+把網站改成可發佈到 **GitHub Pages**（public repo，免費；從 `main` 的 `/docs` 發佈），
+由 **GitHub Actions cron 每日 3 次**自動抓資料、重建並 commit，無需自架伺服器長時間開機。
+
+- **連通性已驗證**：GitHub runner（美國機房 IP）實跑 `refresh()` → TAIFEX/TWSE/TPEx
+  全部 endpoint `errors: []`，確認沒有被地理封鎖（這是整個方案的成敗關卡）。
+- **雙模式前端**（單一來源 `app/static`，不分叉維護）：
+  - `app/static/app.js`、`comprehensive.html`、`chart.html` 加入 `window.__STATIC__` 判斷。
+  - 本機 FastAPI 模式：照舊打 `/api/*`，refresh 按鈕照舊抓取。
+  - 靜態模式（`docs/`）：改讀 `./data/*.json`；主表 date picker 的
+    `view_date → data_date` 換算搬到 client 端（用 `dates.json`，複刻伺服器
+    `MAX(date) < view_date AND daynight='day'` 邏輯）；refresh 按鈕改為「重新整理」。
+- **`scripts/export_static.py`**：呼叫真正的 `/api/comprehensive` 與 `build_dashboard()`
+  （1:1 一致），倒出 `docs/data/comprehensive.json`、`dates.json`、
+  `dashboard/<data_date>.json`（每交易日一份）+ `latest.json`；複製前端到 `docs/`
+  並注入 `__STATIC__` marker、改寫專案 Pages 子路徑的絕對路徑。
+- **`.github/workflows/update.yml`**：cron 台北 15:00 / 21:00 / 07:00（UTC 07/13/23）
+  + `workflow_dispatch`；`actions/cache`（rolling key）保存 `data.db`。
+- **state 策略**：`data.db`（20MB）維持 `.gitignore`（避免每次 commit 二進位造成 git 肥大）；
+  改用 Actions cache 帶著走，並 commit 壓縮種子 `data/data_seed.db.gz`（~6MB）供 cache
+  掉時解壓 + `catch_up` 自我修復。對外歷史記錄 = commit 在 `docs/` 的 JSON。
+- **`requirements.txt`** 補上 `pandas`（`taifex.py` 有用，原本漏列，CI 會掛）。
+- 本機 headless Chrome 截圖實測（主表 / 主表歷史 view_date / 綜合整理 / 走勢圖）render 正常。
+
 ## [v0.10.57] - 2026-05-07 16:50
 
 ### 修正：Codex 新增文件改回繁體中文

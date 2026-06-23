@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <script>window.__STATIC__=true;</script>
+<meta charset="utf-8">
+<title>柴柴 法人部位彙整</title>
+<style>
+  /* All values mirror Excel sheet109 (工作表2) R237-R245 cell-by-cell:
+     fonts: theme1 (black), 標楷體, no bold anywhere
+     fill colors: as exported from styles.xml
+     borders: thick = 2px on outer + 4 section dividers + header bottom */
+  :root {
+    --bg: #f8f6f0;
+    --panel: #ffffff;
+    --for-corner-bg: #FABC00;        /* Excel A237 fill */
+    --col-header-bg: #D7DFF2;        /* Excel R239 column-header fill */
+    --product-zebra: #DCEBF5;        /* Excel fillId=11 (alt rows) */
+    --night-update-bg: #FFC000;      /* Excel H238 「晚上9:00後」 marker */
+    --fg: #000000;                   /* Excel theme1 */
+    --muted: #6b7280;
+    --neg-text: #FF0000;        /* Excel [Red] token = pure red */
+    --border-thin: #b8b8b8;
+    --border-thick: #1f1f1f;
+    --cf-neg: #E1EEDB;               /* CF: 一般 row 口數<0 → 淡綠 */
+    --cf-pos: #FBC9C6;               /* CF: 一般 row 口數>0 → 淡紅 */
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "DFKai-SB", "BiauKai", "標楷體", "Kaiti TC", "Kaiti SC", "Microsoft JhengHei", serif;
+    font-size: 19px;          /* 放大 — 表格寬高保持不變，靠收 cell padding 補空間 */
+    font-weight: normal;
+  }
+  header {
+    background: var(--panel);
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border-thin);
+    font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    font-size: 13px;
+  }
+  header h1 { margin: 0; font-size: 17px; font-weight: 600; }
+  header .meta { color: var(--muted); }
+  button {
+    background: #2c5aa0; color: #fff; border: 0;
+    padding: 7px 14px; border-radius: 4px; cursor: pointer;
+    font-weight: 600; font-size: 13px;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* 轉圈 spinner — refresh 跑時顯示 */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid #cbd5e1;
+    border-top-color: #2c5aa0;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* nav-btn 切換不同 view (主表 vs 綜合整理) — 風格區別於 refresh 按鈕 */
+  .nav-btn {
+    display: inline-block;
+    background: #fff; color: #2c5aa0;
+    border: 2px solid #2c5aa0;
+    padding: 5px 14px; border-radius: 4px;
+    text-decoration: none; font-weight: 600; font-size: 13px;
+    margin-left: 12px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-btn:hover { background: #2c5aa0; color: #fff; }
+  input[type=date] {
+    background: #fff; border: 1px solid var(--border-thin);
+    padding: 5px 8px; border-radius: 3px;
+    font-family: inherit;
+  }
+  main { padding: 18px; max-width: 1300px; margin: 0 auto; }
+
+  /* ===== Excel-faithful summary table ===== */
+  table.summary {
+    border-collapse: collapse;
+    width: 100%;
+    table-layout: fixed;          /* 鎖死 col widths from <colgroup>, 防止切日期抖動 */
+    background: var(--panel);
+    border: 2px solid var(--border-thick);    /* outer thick */
+    color: var(--fg);
+  }
+  table.summary th, table.summary td {
+    border: 1px solid var(--border-thin);     /* inner thin */
+    padding: 4px 8px;                          /* 收一點 padding 讓 row 不會跟著變高 */
+    text-align: right;
+    white-space: nowrap;
+    font-weight: normal;                      /* Excel: no bold anywhere */
+    color: var(--fg);                         /* black */
+  }
+  /* 數字 cells: tabular-nums + monospace digit, 確保 row 之間 1/2/3/.../9 等寬 */
+  table.summary tbody td:not(.product) {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* 4 vertical thick dividers: A|B  D|E  F|G  H|I */
+  table.summary th.col-divider, table.summary td.col-divider {
+    border-right: 2px solid var(--border-thick);
+  }
+
+  /* All header rows bottom = thick (R237 / R238 / R239 in Excel) */
+  table.summary thead tr th { border-bottom: 2px solid var(--border-thick); }
+
+  table.summary thead th {
+    background: var(--col-header-bg);
+    text-align: center;
+  }
+  table.summary thead th.title {
+    background: #ffffff;        /* Excel B237 fill = none = white */
+    font-size: 24px;            /* sz=16 → ~24px (略大於 body) */
+    text-align: center;
+    padding: 8px;
+  }
+  table.summary thead th.section {
+    background: #ffffff;
+  }
+
+  /* 商品 label column — sz12 black, alternating fill (Excel fillId=0 / 11) */
+  table.summary tbody td.product {
+    text-align: center;
+    color: var(--fg);
+  }
+  table.summary tbody tr:nth-child(2) td.product,
+  table.summary tbody tr:nth-child(4) td.product,
+  table.summary tbody tr:nth-child(6) td.product {
+    background: var(--product-zebra);
+  }
+
+  /* Specificity fix: `table.summary td { color }` (0,1,2) was overriding
+     `td.neg` (0,1,1). Qualify here to win. */
+  table.summary td.neg { color: var(--neg-text); }
+  td.empty { background: #ffffff; }
+
+  table.summary th.preopen-col,
+  table.summary td.preopen-col { background: #ffffff; }
+
+  /* 融資餘額 panel — 用 grid 讓 label / 數字 / 單位 三欄垂直對齊 */
+  .margin-panel {
+    margin: 14px 0 0;
+    padding: 8px 14px;
+    background: #ffffff;
+    border: 1px solid var(--border-thin);
+    border-radius: 4px;
+    font-size: 18px;
+    color: var(--fg);
+    display: inline-grid;
+    grid-template-columns: auto auto auto;
+    column-gap: 12px;
+    row-gap: 4px;
+    align-items: baseline;
+  }
+  .margin-panel .m-title {
+    grid-column: 1 / -1;
+    font-weight: normal;
+    border-bottom: 1px solid var(--border-thin);
+    padding-bottom: 4px;
+    margin-bottom: 2px;
+    white-space: nowrap;
+  }
+  .margin-panel .m-label { color: var(--fg); font-size: 18px; }
+  .margin-panel .m-value {
+    font-weight: 600;
+    text-align: right;
+    font-variant-numeric: tabular-nums;   /* 等寬數字, 上下對齊 */
+  }
+  .margin-panel .m-unit { color: var(--fg); font-size: 18px; }
+
+  /* "For YYYY/MM/DD(週) 開盤前看" — Excel A237 橘黃 #FABC00.
+     Selector specificity must beat `table.summary thead th` (=0,1,2) so we
+     qualify with the same prefix → 0,1,3. */
+  table.summary thead th.for-corner {
+    background: var(--for-corner-bg);
+    color: var(--fg);
+    text-align: center;
+    line-height: 1.5;
+    padding: 10px 8px;
+    border-right: 2px solid var(--border-thick);
+    font-size: 19px;     /* match body */
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>柴柴 — 期交所法人部位彙整</h1>
+  <span class="meta">For</span>
+  <input type="date" id="viewDate">
+  <span class="meta">開盤前看</span>
+  <button id="btnRefresh">Refresh 抓最新</button>
+  <a href="comprehensive.html" class="nav-btn">📊 綜合整理 (歷史總表)</a>
+  <div id="status">—</div>
+</header>
+
+<main>
+  <table class="summary" id="mainTable">
+    <colgroup>
+      <col style="width:14%">    <!-- For corner / 商品 label — 容 「For 2025/11/27(四) 開盤前看」 -->
+      <col style="width:8%">     <!-- 日盤口數 -->
+      <col style="width:9%">     <!-- 日盤成本 -->
+      <col style="width:8%">     <!-- 收盤價 (加大, 從 7) -->
+      <col style="width:11%">    <!-- 淨部位 (paren format) -->
+      <col style="width:9%">     <!-- 淨部位成本 -->
+      <col style="width:9%">     <!-- 夜盤口數 -->
+      <col style="width:9%">     <!-- 夜盤成本 -->
+      <col style="width:11%">    <!-- 開盤前部位 (paren format) -->
+      <col style="width:12%">    <!-- 開盤前多空 -->
+    </colgroup>
+    <thead>
+      <tr>
+        <th rowspan="3" class="for-corner" id="forCell">For<br>—<br>開盤前看</th>
+        <th colspan="9" class="title">柴柴 — 期交所法人部位彙整</th>
+      </tr>
+      <tr>
+        <th colspan="5" class="section col-divider" id="dayHeader">— 日盤</th>
+        <th colspan="2" class="section col-divider" id="nightHeader">— 夜盤</th>
+        <th class="preopen-col">開盤前部位</th>
+        <th class="preopen-col">開盤前多空</th>
+      </tr>
+      <tr>
+        <th>口數</th>
+        <th>成本</th>
+        <th class="col-divider">收盤價</th>
+        <th>淨部位</th>
+        <th class="col-divider">成本</th>
+        <th>口數</th>
+        <th class="col-divider">成本</th>
+        <th class="preopen-col">&nbsp;</th>
+        <th class="preopen-col">&nbsp;</th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:30px">(載入中…)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 信用交易補充資訊 — 獨立 panel，標日期 follow Excel R190「115年MM月DD日 信用交易統計」 -->
+  <div class="margin-panel" id="marginPanel">
+    <div class="m-title" id="marginTitle">— 信用交易統計</div>
+    <span class="m-label">上市融資餘額</span>
+    <span class="m-value" id="twseMarginAmt">—</span>
+    <span class="m-unit">億元</span>
+    <span class="m-label">上櫃融資餘額</span>
+    <span class="m-value" id="tpexMarginAmt">—</span>
+    <span class="m-unit">億元</span>
+  </div>
+
+  <p style="color:var(--muted);font-size:13px;margin-top:14px;line-height:1.6;font-family:-apple-system,'Segoe UI','Microsoft JhengHei',sans-serif">
+    <b>欄位說明：</b>「日盤口數」「淨部位」「夜盤口數」聚合三大法人中的<b>外資 + 自營商</b>（排除投信，沿用輝哥 Excel 慣例）。
+    成本背景色：口數正負決定（<b style="background:#E1EEDB;padding:1px 4px">負→淡綠</b>、<b style="background:#FBC9C6;padding:1px 4px">正→淡紅</b>）。
+    <b>賣權 PUT 一列規則反轉</b>（負→淡紅、正→淡綠，因 PUT 多空意義相反）。
+    期貨「成本」單位點數；股期單位股價；選擇權單位權利金點數。
+  </p>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

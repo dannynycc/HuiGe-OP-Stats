@@ -59,6 +59,7 @@
     overflow: hidden;
     display: flex;
   }
+  #chartArea:focus { outline: none; }
   /* layout containers, switched by mode */
   .layout-stacked { flex-direction: column; gap: 12px; }
   .layout-single  { flex-direction: column; }
@@ -81,6 +82,55 @@
     background: repeating-linear-gradient(45deg, currentColor 0 4px, transparent 4px 8px);
   }
   .hint { color: var(--muted); margin-left: auto; font-size: 12px; }
+  .endpoint-annotation-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .endpoint-marker {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.22), 0 1px 3px rgba(0,0,0,0.2);
+    transform: translate(-50%, -50%);
+  }
+  .endpoint-cursor-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    border-left: 1px dashed rgba(55, 65, 81, 0.72);
+    transform: translateX(-0.5px);
+  }
+  .endpoint-label {
+    position: absolute;
+    padding: 2px 6px;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.94);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.14);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+  .endpoint-date-label {
+    position: absolute;
+    padding: 2px 7px;
+    border: 1px solid #9ca3af;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.96);
+    color: #374151;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+  }
 </style>
 </head>
 <body>
@@ -88,6 +138,7 @@
   <select id="categorySelect" class="category-select">
     <option value="margin">融資餘額佔市值比 + 指數</option>
     <option value="stock_fut">股票期貨 法人淨部位</option>
+    <option value="tx_fut_net">台指期法人淨部位 vs 台指期點位</option>
     <option value="cp_vs_index">法人CP合計多空 vs 加權指數漲跌幅</option>
   </select>
   <span class="muted">走勢圖 · 2020-01-02 ~ today</span>
@@ -112,6 +163,11 @@
 <script>
 "use strict";
 
+// 靜態 (GitHub Pages) 模式：docs/ 版本會注入 window.__STATIC__ = true。
+const STATIC = window.__STATIC__ === true;
+const COMP_URL = STATIC ? "./data/comprehensive.json" : "/api/comprehensive";
+const _bust = () => STATIC ? `?_=${Date.now()}` : "";
+
 // ── 顏色 / style 約定 ──
 // 上市 (TWSE): 紅 #dc2626
 // 加權指數:    暗紅 #991b1b, 虛線
@@ -123,6 +179,7 @@ const COLOR = {
   tpexMargin: "#2563eb",
   otcIdx:     "#1e3a8a",
   stockFut:   "#7c3aed",  // 紫 (stock_fut panel 1 主)
+  txFutNet:   "#b45309",  // 琥珀棕 (tx_fut_net 主)
   basis:      "#059669",  // 翠綠 (stock_fut panel 2 主)
   txClose:    "#374151",  // 深灰 (右軸參照線)
   cpNet:      "#0891b2",  // cyan-600 (cp_vs_index 主, 跟 stockFut 紫區分)
@@ -131,6 +188,7 @@ const COLOR = {
 
 let plots = [];   // 目前活著的 uPlot instances (resize 用)
 let DATA = null;  // { xs, twseMargin, tpexMargin, twii, otc, dataMin, dataMax }
+const ENDPOINT_CURSOR_INDEX = new Map();
 
 function destroyPlots() {
   for (const u of plots) try { u.destroy(); } catch {}
@@ -172,6 +230,188 @@ function getPanelSize(mode) {
   if (mode === "stockfut3")  return { w, h: Math.floor((h - 24) / 3) };  // 3 panel, 2 個 gap
   if (mode === "stacked")    return { w, h: Math.floor((h - 12) / 2) };
   return { w, h };
+}
+
+function pushHook(opts, name, fn) {
+  opts.hooks = opts.hooks || {};
+  opts.hooks[name] = opts.hooks[name] || [];
+  opts.hooks[name].push(fn);
+}
+
+function formatEndpointValue(v, unit) {
+  if (v == null || !Number.isFinite(v)) return "";
+  const text = v.toLocaleString("en-US", {maximumFractionDigits: 0});
+  return unit ? `${text} ${unit}` : text;
+}
+
+function formatAxisValue(v, unit) {
+  if (v == null || !Number.isFinite(v)) return "";
+  const text = v.toLocaleString("en-US", {maximumFractionDigits: 0});
+  return unit ? `${text} ${unit}` : text;
+}
+
+function formatEndpointDate(ts) {
+  const d = new Date(ts * 1000);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function lastValidIndex(data) {
+  for (let i = data.length - 1; i >= 0; i--) {
+    if (data[i] != null && Number.isFinite(data[i])) return i;
+  }
+  return null;
+}
+
+function isValidIndex(idx, len) {
+  return Number.isInteger(idx) && idx >= 0 && idx < len;
+}
+
+function endpointHasValueAt(u, state, idx) {
+  return state.items.some(item => {
+    const v = u.data[item.seriesIdx][idx];
+    return v != null && Number.isFinite(v);
+  });
+}
+
+function latestEndpointIndex(u, state) {
+  return Math.max(...state.items.map(item => lastValidIndex(u.data[item.seriesIdx]) ?? -1));
+}
+
+function currentEndpointIndex(u, state) {
+  if (isValidIndex(u.cursor.idx, u.data[0].length)) return u.cursor.idx;
+  const stored = ENDPOINT_CURSOR_INDEX.get(state.syncKey);
+  if (isValidIndex(stored, u.data[0].length)) return stored;
+  const latest = latestEndpointIndex(u, state);
+  return latest >= 0 ? latest : null;
+}
+
+function stepEndpointIndex(u, state, fromIdx, step) {
+  const n = u.data[0].length;
+  for (let i = fromIdx + step; i >= 0 && i < n; i += step) {
+    if (u.data[0][i] != null && endpointHasValueAt(u, state, i)) return i;
+  }
+  return fromIdx;
+}
+
+function setEndpointCursorIndex(syncKey, idx) {
+  ENDPOINT_CURSOR_INDEX.set(syncKey, idx);
+  for (const p of plots) {
+    const state = p._endpointAnnotations;
+    if (!state || state.syncKey !== syncKey || !isValidIndex(idx, p.data[0].length)) continue;
+    const x = p.valToPos(p.data[0][idx], "x");
+    if (Number.isFinite(x)) p.setCursor({ left: x, top: p.bbox.height / 2 }, false);
+    updateEndpointAnnotations(p);
+  }
+}
+
+function moveEndpointCursor(step) {
+  if (CURRENT_CATEGORY !== "stock_fut") return false;
+  const annotated = plots.filter(p => p._endpointAnnotations);
+  if (!annotated.length) return false;
+
+  const u = annotated[0];
+  const state = u._endpointAnnotations;
+  const start = currentEndpointIndex(u, state);
+  if (start == null) return false;
+
+  const next = stepEndpointIndex(u, state, start, step);
+  setEndpointCursorIndex(state.syncKey, next);
+  return true;
+}
+
+function initEndpointAnnotations(u, configs, syncKey) {
+  u.over.style.overflow = "visible";
+  const layer = document.createElement("div");
+  layer.className = "endpoint-annotation-layer";
+  u.over.appendChild(layer);
+
+  const cursorLine = document.createElement("div");
+  cursorLine.className = "endpoint-cursor-line";
+  layer.appendChild(cursorLine);
+
+  const dateLabel = document.createElement("div");
+  dateLabel.className = "endpoint-date-label";
+  layer.appendChild(dateLabel);
+
+  const items = configs.map((cfg, i) => {
+    const marker = document.createElement("div");
+    marker.className = "endpoint-marker";
+    marker.style.background = cfg.color;
+    marker.style.boxShadow = `0 0 0 1px ${cfg.color}, 0 1px 3px rgba(0,0,0,0.22)`;
+
+    const label = document.createElement("div");
+    label.className = "endpoint-label";
+    label.style.color = cfg.color;
+
+    layer.appendChild(marker);
+    layer.appendChild(label);
+    return {
+      ...cfg,
+      marker,
+      label,
+      yNudge: cfg.yNudge ?? (i === 0 ? -16 : 16),
+    };
+  });
+
+  u._endpointAnnotations = { layer, cursorLine, dateLabel, items, syncKey };
+  updateEndpointAnnotations(u);
+}
+
+function updateEndpointAnnotations(u) {
+  const state = u._endpointAnnotations;
+  if (!state) return;
+  const overW = u.over.clientWidth;
+  const overH = u.over.clientHeight;
+  const activeIdx = currentEndpointIndex(u, state);
+  const dateIdx = activeIdx ?? latestEndpointIndex(u, state);
+  const dateXVal = dateIdx >= 0 ? u.data[0][dateIdx] : null;
+  const dateX = dateXVal == null ? null : u.valToPos(dateXVal, "x");
+
+  if (dateXVal == null || !Number.isFinite(dateX) || dateX < 0 || dateX > overW) {
+    state.cursorLine.style.display = "none";
+    state.dateLabel.style.display = "none";
+  } else {
+    state.cursorLine.style.display = "block";
+    state.cursorLine.style.left = `${dateX}px`;
+    state.dateLabel.style.display = "block";
+    state.dateLabel.textContent = formatEndpointDate(dateXVal);
+    const w = state.dateLabel.offsetWidth || 74;
+    const clampedX = Math.min(Math.max(dateX, w / 2 + 4), overW - w / 2 - 4);
+    state.dateLabel.style.left = `${clampedX}px`;
+    state.dateLabel.style.top = "13px";
+  }
+
+  for (const item of state.items) {
+    const data = u.data[item.seriesIdx];
+    const idx = activeIdx == null ? lastValidIndex(data) : activeIdx;
+    const xVal = idx == null ? null : u.data[0][idx];
+    const yVal = idx == null ? null : data[idx];
+
+    if (xVal == null || yVal == null || !Number.isFinite(yVal)) {
+      item.marker.style.display = "none";
+      item.label.style.display = "none";
+      continue;
+    }
+
+    const x = u.valToPos(xVal, "x");
+    const y = u.valToPos(yVal, item.scale);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > overW || y < 0 || y > overH) {
+      item.marker.style.display = "none";
+      item.label.style.display = "none";
+      continue;
+    }
+
+    item.marker.style.display = "block";
+    item.marker.style.left = `${x}px`;
+    item.marker.style.top = `${y}px`;
+
+    item.label.style.display = "block";
+    item.label.textContent = `${item.labelText} ${formatEndpointValue(yVal, item.unit)}`;
+    const placeLeft = x > overW - 180;
+    item.label.style.left = `${x + (placeLeft ? -8 : 8)}px`;
+    item.label.style.top = `${Math.min(Math.max(y + item.yNudge, 14), overH - 14)}px`;
+    item.label.style.transform = placeLeft ? "translate(-100%, -50%)" : "translate(0, -50%)";
+  }
 }
 
 // 通用: 雙 Y 軸 panel (左 = 指數, 右 = 融資%)
@@ -377,10 +617,10 @@ function renderScatter() {
                    size, DATA.otc, DATA.tpexMargin, COLOR.tpexMargin);
 }
 
-// 雙 Y 軸 panel + cursor sync (左軸 = 主資料 + 可選 0 線, 右軸 = 台指期參照)
+// 雙 Y 軸 panel + cursor sync；可設定哪個軸畫 0 線、哪條線是虛線。
 function makeStockFutPanel(container, title, size, xs, leftData, rightData,
                            leftColor, rightColor, leftLabel, rightLabel,
-                           leftUnit, rightUnit, withLeftZero, syncKey) {
+                           leftUnit, rightUnit, withLeftZero, syncKey, extraOpts = {}) {
   const panel = document.createElement("div");
   panel.className = "panel";
   if (title) {
@@ -389,6 +629,16 @@ function makeStockFutPanel(container, title, size, xs, leftData, rightData,
     panel.appendChild(t);
   }
   container.appendChild(panel);
+
+  const hasLeftDash = Object.prototype.hasOwnProperty.call(extraOpts, "leftDash");
+  const hasRightDash = Object.prototype.hasOwnProperty.call(extraOpts, "rightDash");
+  const leftDash = hasLeftDash ? (extraOpts.leftDash || []) : [];
+  const rightDash = hasRightDash ? (extraOpts.rightDash || []) : [6, 3];
+  const leftWidth = extraOpts.leftWidth || 1.5;
+  const rightWidth = extraOpts.rightWidth || 1.3;
+  const zeroScale = extraOpts.zeroScale ?? (withLeftZero ? "left" : null);
+  const leftAxisSize = extraOpts.leftAxisSize ?? (leftUnit ? 88 : 80);
+  const rightAxisSize = extraOpts.rightAxisSize ?? (rightUnit ? 92 : 70);
 
   const opts = {
     width: size.w, height: size.h,
@@ -404,42 +654,53 @@ function makeStockFutPanel(container, title, size, xs, leftData, rightData,
     scales: { x: { time: true }, left: { auto: true }, right: { auto: true } },
     axes: [
       { values: xAxisVals },
-      { scale: "left", stroke: leftColor, size: 80,
-        values: (u, vs) => vs.map(v => v.toLocaleString("en-US", {maximumFractionDigits: 0})) },
-      { side: 1, scale: "right", stroke: rightColor, size: 70,
-        values: (u, vs) => vs.map(v => v.toLocaleString("en-US", {maximumFractionDigits: 0})),
+      { scale: "left", stroke: leftColor, size: leftAxisSize,
+        values: (u, vs) => vs.map(v => formatAxisValue(v, leftUnit)) },
+      { side: 1, scale: "right", stroke: rightColor, size: rightAxisSize,
+        values: (u, vs) => vs.map(v => formatAxisValue(v, rightUnit)),
         grid: { show: false } },
     ],
     series: [
       {},
-      { label: leftLabel, scale: "left", stroke: leftColor, width: 1.5,
+      { label: leftLabel, scale: "left", stroke: leftColor, width: leftWidth,
+        dash: leftDash,
         value: (u, v) => v == null ? "" :
           v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " " + leftUnit },
-      { label: rightLabel, scale: "right", stroke: rightColor, width: 1.3,
-        dash: [6, 3],   // 右軸台指期 = 參照線, 加粗 + 較密虛線確保看得清楚
+      { label: rightLabel, scale: "right", stroke: rightColor, width: rightWidth,
+        dash: rightDash,
         value: (u, v) => v == null ? "" :
           v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " " + rightUnit },
     ],
   };
-  if (withLeftZero) {
-    opts.hooks = {
-      drawAxes: [(u) => {
-        const yZero = u.valToPos(0, "left", true);
-        if (yZero >= u.bbox.top && yZero <= u.bbox.top + u.bbox.height) {
-          const ctx = u.ctx;
-          ctx.save();
-          ctx.strokeStyle = "#888";
-          ctx.lineWidth = 1.2;
-          ctx.setLineDash([5, 4]);
-          ctx.beginPath();
-          ctx.moveTo(u.bbox.left, yZero);
-          ctx.lineTo(u.bbox.left + u.bbox.width, yZero);
-          ctx.stroke();
-          ctx.restore();
-        }
-      }],
-    };
+
+  if (zeroScale) {
+    pushHook(opts, "drawAxes", (u) => {
+      const yZero = u.valToPos(0, zeroScale, true);
+      if (yZero >= u.bbox.top && yZero <= u.bbox.top + u.bbox.height) {
+        const ctx = u.ctx;
+        ctx.save();
+        ctx.strokeStyle = "#888";
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(u.bbox.left, yZero);
+        ctx.lineTo(u.bbox.left + u.bbox.width, yZero);
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
   }
+
+  if (extraOpts.annotateEndpoints) {
+    const annotationConfigs = [
+      { seriesIdx: 1, scale: "left", color: leftColor, labelText: leftLabel, unit: leftUnit },
+      { seriesIdx: 2, scale: "right", color: rightColor, labelText: rightLabel, unit: rightUnit },
+    ];
+    pushHook(opts, "ready", (u) => initEndpointAnnotations(u, annotationConfigs, syncKey));
+    pushHook(opts, "setCursor", updateEndpointAnnotations);
+    pushHook(opts, "setScale", updateEndpointAnnotations);
+  }
+
   const u = new uPlot(opts, [xs, leftData, rightData], panel);
   attachWheelZoom(u, DATA.dataMinAll, DATA.dataMaxAll);
   plots.push(u);
@@ -563,22 +824,53 @@ function renderStockFut() {
   area.innerHTML = "";
   const size = getPanelSize("stacked");          // 2 panel = (h-12)/2
   const syncKey = "stockfut_sync";               // 同 key → 兩 panel cursor 同步
-  // Panel 1: 股期淨部位 (左, 紫實線) + 台指期 (右, 灰虛線 = 參照)
+  // Panel 1: 台指期 (左, 灰虛線 = 參照) + 股期淨部位 (右, 紫實線)
   makeStockFutPanel(area,
-    "股期法人淨部位 (左軸 口, 紫實線) ↔ 台指期 近月收盤 (右軸 點, 灰虛線=參照) — 0 線虛灰=左軸",
-    size, DATA.xsAll, DATA.stockFut, DATA.txClose,
-    COLOR.stockFut, COLOR.txClose,
-    "股期淨部位", "台指期",
-    "口", "點",
-    true, syncKey);
-  // Panel 2: 期現價差 (左, 翠綠實線, 含 0 線) + 台指期 (右, 灰虛線 = 參照)
+    "台指期 近月收盤 (左軸 點, 灰虛線=參照) ↔ 股期法人淨部位 (右軸 口, 紫實線) — 0 線虛灰=右軸",
+    size, DATA.xsAll, DATA.txClose, DATA.stockFut,
+    COLOR.txClose, COLOR.stockFut,
+    "台指期", "股期淨部位",
+    "點", "口",
+    false, syncKey,
+    {
+      leftDash: [6, 3],
+      leftWidth: 1.3,
+      rightDash: null,
+      rightWidth: 1.5,
+      zeroScale: "right",
+      annotateEndpoints: true,
+    });
+  // Panel 2: 台指期 (左, 灰虛線 = 參照) + 期現價差 (右, 翠綠實線, 含 0 線)
   makeStockFutPanel(area,
-    "期現價差 = 台指期 - 加權 (左軸 點, 翠綠實線) ↔ 台指期 近月收盤 (右軸 點, 灰虛線=參照) — 0 線=升貼水分界",
-    size, DATA.xsAll, DATA.basis, DATA.txClose,
-    COLOR.basis, COLOR.txClose,
-    "期現價差", "台指期",
+    "台指期 近月收盤 (左軸 點, 灰虛線=參照) ↔ 期現價差 = 台指期 - 加權 (右軸 點, 翠綠實線) — 0 線=升貼水分界",
+    size, DATA.xsAll, DATA.txClose, DATA.basis,
+    COLOR.txClose, COLOR.basis,
+    "台指期", "期現價差",
     "點", "點",
-    true, syncKey);
+    false, syncKey,
+    {
+      leftDash: [6, 3],
+      leftWidth: 1.3,
+      rightDash: null,
+      rightWidth: 1.5,
+      zeroScale: "right",
+      annotateEndpoints: true,
+    });
+}
+
+// Category: tx_fut_net — 單張左右軸圖，台指期法人淨部位 vs 台指期點位
+function renderTxFutNet() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-single";
+  area.innerHTML = "";
+  const size = getPanelSize("single");
+  makeStockFutPanel(area,
+    "台指期法人淨部位 (左軸 口, 實線) ↔ 台指期近月收盤 (右軸 點, 灰虛線) — 左軸 0 線可看法人淨多/淨空分界",
+    size, DATA.xsAll, DATA.txFutNet, DATA.txClose,
+    COLOR.txFutNet, COLOR.txClose,
+    "台指期法人淨部位", "台指期",
+    "口", "點",
+    true, "txfutnet_sync");
 }
 
 const RENDER = {
@@ -592,9 +884,13 @@ const LEGENDS = {
   original: [["twseMargin","上市 TWSE"], ["tpexMargin","上櫃 TPEX"]],
   scatter:  [["twseMargin","上市點 (X=加權, Y=融資%)"], ["tpexMargin","上櫃點 (X=OTC, Y=融資%)"]],
   stockfut: [
-    ["stockFut", "股期淨部位 (上 panel 左軸, 口)"],
-    ["basis",    "期現價差 (下 panel 左軸, 點)"],
-    ["txClose",  "台指期 (兩 panel 右軸, 點)"],
+    ["stockFut", "股期淨部位 (上 panel 右軸, 口)"],
+    ["basis",    "期現價差 (下 panel 右軸, 點)"],
+    ["txClose",  "台指期 (兩 panel 左軸, 點, 虛線)"],
+  ],
+  txfutnet: [
+    ["txFutNet", "台指期法人淨部位 (左軸, 口)"],
+    ["txClose",  "台指期近月收盤 (右軸, 點, 虛線)"],
   ],
   cpidx: [
     ["cpNet",      "法人CP 當天 (左軸 細線)"],
@@ -638,7 +934,13 @@ function setCategory(cat) {
     setMode(active ? active.dataset.mode : "stacked");
   } else if (cat === "stock_fut") {
     renderLegend("stockfut");
-    requestAnimationFrame(() => renderStockFut());
+    requestAnimationFrame(() => {
+      renderStockFut();
+      document.getElementById("chartArea").focus({preventScroll: true});
+    });
+  } else if (cat === "tx_fut_net") {
+    renderLegend("txfutnet");
+    requestAnimationFrame(() => renderTxFutNet());
   } else if (cat === "cp_vs_index") {
     cpHorizonBar.style.display = "flex";
     const active = document.querySelector("#cpHorizonBar .mode-btn.active");
@@ -650,6 +952,9 @@ function handleResize() {
   if (CURRENT_CATEGORY === "stock_fut") {
     destroyPlots();
     requestAnimationFrame(() => renderStockFut());
+  } else if (CURRENT_CATEGORY === "tx_fut_net") {
+    destroyPlots();
+    requestAnimationFrame(() => renderTxFutNet());
   } else if (CURRENT_CATEGORY === "cp_vs_index") {
     destroyPlots();
     requestAnimationFrame(() => renderCpVsIndex());
@@ -660,7 +965,7 @@ function handleResize() {
 }
 
 async function init() {
-  const r = await fetch("/api/comprehensive").then(r => r.json());
+  const r = await fetch(COMP_URL + _bust()).then(r => r.json());
   const rows = (r.rows || []).filter(x =>
     x.twse_margin_pct != null && x.tpex_margin_pct != null
   );
@@ -677,6 +982,7 @@ async function init() {
   const allRows  = (r.rows || []).slice();
   const xsAll    = allRows.map(x => Math.floor(new Date(x.date+"T00:00:00").getTime()/1000));
   const stockFut = allRows.map(x => x.stock_fut_legal_net);
+  const txFutNet = allRows.map(x => x.op_legal_net);
   const txClose  = allRows.map(x => x.tx_close);
   const basis    = allRows.map(x =>
     (x.tx_close != null && x.twii_close != null) ? x.tx_close - x.twii_close : null);
@@ -725,7 +1031,7 @@ async function init() {
 
   DATA = {
     xs, twseMargin, tpexMargin, twii, otc,
-    xsAll, stockFut, txClose, basis,
+    xsAll, stockFut, txFutNet, txClose, basis,
     cpNet, cpNet5d, returnsByHorizon,
     dataMin: xs[0], dataMax: xs[xs.length-1],
     dataMinAll: xsAll[0], dataMaxAll: xsAll[xsAll.length-1],
@@ -737,12 +1043,31 @@ async function init() {
     b.addEventListener("click", () => setHorizon(parseInt(b.dataset.horizon))));
   document.getElementById("categorySelect").addEventListener("change", (e) =>
     setCategory(e.target.value));
+  const chartArea = document.getElementById("chartArea");
+  chartArea.tabIndex = 0;
+  chartArea.addEventListener("mousedown", () => {
+    if (CURRENT_CATEGORY === "stock_fut") chartArea.focus({preventScroll: true});
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const tag = document.activeElement ? document.activeElement.tagName : "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") return;
+    const moved = moveEndpointCursor(e.key === "ArrowLeft" ? -1 : 1);
+    if (moved) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
   window.addEventListener("resize", () => {
     clearTimeout(window._resizeT);
     window._resizeT = setTimeout(handleResize, 150);
   });
 
-  setCategory("margin");  // default: 融資餘額 (= margin), 顯示 stacked mode
+  const initialCategory = new URLSearchParams(window.location.search).get("category") || "margin";
+  const validCategories = new Set(["margin", "stock_fut", "tx_fut_net", "cp_vs_index"]);
+  const category = validCategories.has(initialCategory) ? initialCategory : "margin";
+  document.getElementById("categorySelect").value = category;
+  setCategory(category);  // default: 融資餘額 (= margin), 顯示 stacked mode
 }
 
 init();

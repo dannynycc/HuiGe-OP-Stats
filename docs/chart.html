@@ -1,0 +1,1077 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <script>window.__STATIC__=true;</script>
+<meta charset="utf-8">
+<title>走勢圖</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
+<style>
+  :root { --bg: #ffffff; --fg: #000000; --muted: #6b7280; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    font-size: 13px;
+    display: flex; flex-direction: column;
+  }
+  header {
+    padding: 10px 16px;
+    border-bottom: 1px solid #ddd;
+    display: flex; align-items: center; gap: 12px;
+    flex-shrink: 0; flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; }
+  header span.muted { color: var(--muted); font-size: 13px; }
+  /* category dropdown — 取代靜態 h1 */
+  .category-select {
+    font-size: 16px; font-weight: 600;
+    padding: 6px 10px; border: 1px solid #ccc;
+    border-radius: 4px; background: #fff;
+    cursor: pointer; color: var(--fg);
+  }
+  .category-select:hover { border-color: #2c5aa0; }
+  .nav-btn {
+    display: inline-block;
+    background: #fff; color: #2c5aa0;
+    border: 2px solid #2c5aa0;
+    padding: 5px 14px; border-radius: 4px;
+    text-decoration: none; font-weight: 600; font-size: 13px;
+    margin-left: auto;
+  }
+  .nav-btn:hover { background: #2c5aa0; color: #fff; }
+
+  /* mode toggle button bar */
+  .mode-bar { display: flex; gap: 4px; margin-left: 12px; }
+  .mode-btn {
+    background: #f5f5f5; border: 1px solid #ccc;
+    padding: 5px 12px; cursor: pointer; font-size: 12px;
+    border-radius: 3px; color: #333;
+  }
+  .mode-btn:hover { background: #e8e8e8; }
+  .mode-btn.active {
+    background: #2c5aa0; color: #fff; border-color: #2c5aa0; font-weight: 600;
+  }
+
+  #chartArea {
+    flex: 1;
+    padding: 16px;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+  }
+  #chartArea:focus { outline: none; }
+  /* layout containers, switched by mode */
+  .layout-stacked { flex-direction: column; gap: 12px; }
+  .layout-single  { flex-direction: column; }
+  .panel { flex: 1 1 0; min-height: 0; min-width: 0; position: relative; }
+  .panel-title {
+    position: absolute; top: 4px; left: 12px;
+    font-size: 12px; color: var(--muted); font-weight: 600;
+    pointer-events: none; z-index: 2;
+  }
+
+  .legend {
+    display: flex; gap: 18px;
+    padding: 6px 16px;
+    border-bottom: 1px solid #eee;
+    background: #fafafa; align-items: center; flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+  .legend-color.dashed {
+    background: repeating-linear-gradient(45deg, currentColor 0 4px, transparent 4px 8px);
+  }
+  .hint { color: var(--muted); margin-left: auto; font-size: 12px; }
+  .endpoint-annotation-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .endpoint-marker {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.22), 0 1px 3px rgba(0,0,0,0.2);
+    transform: translate(-50%, -50%);
+  }
+  .endpoint-cursor-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    border-left: 1px dashed rgba(55, 65, 81, 0.72);
+    transform: translateX(-0.5px);
+  }
+  .endpoint-label {
+    position: absolute;
+    padding: 2px 6px;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.94);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.14);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+  .endpoint-date-label {
+    position: absolute;
+    padding: 2px 7px;
+    border: 1px solid #9ca3af;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.96);
+    color: #374151;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+  }
+</style>
+</head>
+<body>
+<header>
+  <select id="categorySelect" class="category-select">
+    <option value="margin">融資餘額佔市值比 + 指數</option>
+    <option value="stock_fut">股票期貨 法人淨部位</option>
+    <option value="tx_fut_net">台指期法人淨部位 vs 台指期點位</option>
+    <option value="cp_vs_index">法人CP合計多空 vs 加權指數漲跌幅</option>
+  </select>
+  <span class="muted">走勢圖 · 2020-01-02 ~ today</span>
+  <div class="mode-bar" id="modeBar">
+    <button class="mode-btn active" data-mode="stacked">A · 上下雙圖</button>
+    <button class="mode-btn"        data-mode="original">B · 純融資%</button>
+    <button class="mode-btn"        data-mode="scatter">C · 散佈圖</button>
+  </div>
+  <div class="mode-bar" id="cpHorizonBar" style="display:none">
+    <button class="mode-btn active" data-horizon="0">T 同期 (當天 %)</button>
+    <button class="mode-btn"        data-horizon="1">T+1 隔日</button>
+    <button class="mode-btn"        data-horizon="5">T+5 一週</button>
+    <button class="mode-btn"        data-horizon="20">T+20 一個月</button>
+  </div>
+  <a href="comprehensive.html" class="nav-btn">← 回綜合整理</a>
+</header>
+
+<div class="legend" id="legend"></div>
+<div id="chartArea" class="layout-stacked"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js"></script>
+<script>
+"use strict";
+
+// 靜態 (GitHub Pages) 模式：docs/ 版本會注入 window.__STATIC__ = true。
+const STATIC = window.__STATIC__ === true;
+const COMP_URL = STATIC ? "./data/comprehensive.json" : "/api/comprehensive";
+const _bust = () => STATIC ? `?_=${Date.now()}` : "";
+
+// ── 顏色 / style 約定 ──
+// 上市 (TWSE): 紅 #dc2626
+// 加權指數:    暗紅 #991b1b, 虛線
+// 上櫃 (TPEX): 藍 #2563eb
+// OTC 指數:    暗藍 #1e3a8a, 虛線
+const COLOR = {
+  twseMargin: "#dc2626",
+  twii:       "#991b1b",
+  tpexMargin: "#2563eb",
+  otcIdx:     "#1e3a8a",
+  stockFut:   "#7c3aed",  // 紫 (stock_fut panel 1 主)
+  txFutNet:   "#b45309",  // 琥珀棕 (tx_fut_net 主)
+  basis:      "#059669",  // 翠綠 (stock_fut panel 2 主)
+  txClose:    "#374151",  // 深灰 (右軸參照線)
+  cpNet:      "#0891b2",  // cyan-600 (cp_vs_index 主, 跟 stockFut 紫區分)
+  twiiReturn: "#374151",  // 深灰 (cp_vs_index 右軸 漲跌% 參照線)
+};
+
+let plots = [];   // 目前活著的 uPlot instances (resize 用)
+let DATA = null;  // { xs, twseMargin, tpexMargin, twii, otc, dataMin, dataMax }
+const ENDPOINT_CURSOR_INDEX = new Map();
+
+function destroyPlots() {
+  for (const u of plots) try { u.destroy(); } catch {}
+  plots = [];
+}
+
+function attachWheelZoom(plot, dataMin, dataMax) {
+  plot.over.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 0.85 : 1.18;
+    const xMin = plot.scales.x.min, xMax = plot.scales.x.max;
+    const rect = plot.over.getBoundingClientRect();
+    const cursorVal = plot.posToVal(e.clientX - rect.left, "x");
+    let newMin = cursorVal - (cursorVal - xMin) * factor;
+    let newMax = cursorVal + (xMax - cursorVal) * factor;
+    if (newMin < dataMin) newMin = dataMin;
+    if (newMax > dataMax) newMax = dataMax;
+    if (newMin >= newMax) { newMin = dataMin; newMax = dataMax; }
+    // Broadcast 給同 category 的 all panels (cursor.sync 不同步 setScale, 自己廣播)
+    for (const p of plots) p.setScale("x", { min: newMin, max: newMax });
+  }, { passive: false });
+  plot.over.addEventListener("dblclick", () => {
+    for (const p of plots) p.setScale("x", { min: dataMin, max: dataMax });
+  });
+}
+
+// X-axis date formatter (shared)
+const xAxisVals = (u, vals) => vals.map(v => {
+  const d = new Date(v * 1000);
+  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+});
+
+// 計算 panel size — chartArea 父元素已 layout, 直接量 + 按 mode 切
+function getPanelSize(mode) {
+  const area = document.getElementById("chartArea");
+  // chartArea 有 padding 16, gap 12 between panels
+  const w = Math.max(100, area.clientWidth  - 32);
+  const h = Math.max(100, area.clientHeight - 32);
+  if (mode === "stockfut3")  return { w, h: Math.floor((h - 24) / 3) };  // 3 panel, 2 個 gap
+  if (mode === "stacked")    return { w, h: Math.floor((h - 12) / 2) };
+  return { w, h };
+}
+
+function pushHook(opts, name, fn) {
+  opts.hooks = opts.hooks || {};
+  opts.hooks[name] = opts.hooks[name] || [];
+  opts.hooks[name].push(fn);
+}
+
+function formatEndpointValue(v, unit) {
+  if (v == null || !Number.isFinite(v)) return "";
+  const text = v.toLocaleString("en-US", {maximumFractionDigits: 0});
+  return unit ? `${text} ${unit}` : text;
+}
+
+function formatAxisValue(v, unit) {
+  if (v == null || !Number.isFinite(v)) return "";
+  const text = v.toLocaleString("en-US", {maximumFractionDigits: 0});
+  return unit ? `${text} ${unit}` : text;
+}
+
+function formatEndpointDate(ts) {
+  const d = new Date(ts * 1000);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function lastValidIndex(data) {
+  for (let i = data.length - 1; i >= 0; i--) {
+    if (data[i] != null && Number.isFinite(data[i])) return i;
+  }
+  return null;
+}
+
+function isValidIndex(idx, len) {
+  return Number.isInteger(idx) && idx >= 0 && idx < len;
+}
+
+function endpointHasValueAt(u, state, idx) {
+  return state.items.some(item => {
+    const v = u.data[item.seriesIdx][idx];
+    return v != null && Number.isFinite(v);
+  });
+}
+
+function latestEndpointIndex(u, state) {
+  return Math.max(...state.items.map(item => lastValidIndex(u.data[item.seriesIdx]) ?? -1));
+}
+
+function currentEndpointIndex(u, state) {
+  if (isValidIndex(u.cursor.idx, u.data[0].length)) return u.cursor.idx;
+  const stored = ENDPOINT_CURSOR_INDEX.get(state.syncKey);
+  if (isValidIndex(stored, u.data[0].length)) return stored;
+  const latest = latestEndpointIndex(u, state);
+  return latest >= 0 ? latest : null;
+}
+
+function stepEndpointIndex(u, state, fromIdx, step) {
+  const n = u.data[0].length;
+  for (let i = fromIdx + step; i >= 0 && i < n; i += step) {
+    if (u.data[0][i] != null && endpointHasValueAt(u, state, i)) return i;
+  }
+  return fromIdx;
+}
+
+function setEndpointCursorIndex(syncKey, idx) {
+  ENDPOINT_CURSOR_INDEX.set(syncKey, idx);
+  for (const p of plots) {
+    const state = p._endpointAnnotations;
+    if (!state || state.syncKey !== syncKey || !isValidIndex(idx, p.data[0].length)) continue;
+    const x = p.valToPos(p.data[0][idx], "x");
+    if (Number.isFinite(x)) p.setCursor({ left: x, top: p.bbox.height / 2 }, false);
+    updateEndpointAnnotations(p);
+  }
+}
+
+function moveEndpointCursor(step) {
+  if (CURRENT_CATEGORY !== "stock_fut") return false;
+  const annotated = plots.filter(p => p._endpointAnnotations);
+  if (!annotated.length) return false;
+
+  const u = annotated[0];
+  const state = u._endpointAnnotations;
+  const start = currentEndpointIndex(u, state);
+  if (start == null) return false;
+
+  const next = stepEndpointIndex(u, state, start, step);
+  setEndpointCursorIndex(state.syncKey, next);
+  return true;
+}
+
+function initEndpointAnnotations(u, configs, syncKey) {
+  u.over.style.overflow = "visible";
+  const layer = document.createElement("div");
+  layer.className = "endpoint-annotation-layer";
+  u.over.appendChild(layer);
+
+  const cursorLine = document.createElement("div");
+  cursorLine.className = "endpoint-cursor-line";
+  layer.appendChild(cursorLine);
+
+  const dateLabel = document.createElement("div");
+  dateLabel.className = "endpoint-date-label";
+  layer.appendChild(dateLabel);
+
+  const items = configs.map((cfg, i) => {
+    const marker = document.createElement("div");
+    marker.className = "endpoint-marker";
+    marker.style.background = cfg.color;
+    marker.style.boxShadow = `0 0 0 1px ${cfg.color}, 0 1px 3px rgba(0,0,0,0.22)`;
+
+    const label = document.createElement("div");
+    label.className = "endpoint-label";
+    label.style.color = cfg.color;
+
+    layer.appendChild(marker);
+    layer.appendChild(label);
+    return {
+      ...cfg,
+      marker,
+      label,
+      yNudge: cfg.yNudge ?? (i === 0 ? -16 : 16),
+    };
+  });
+
+  u._endpointAnnotations = { layer, cursorLine, dateLabel, items, syncKey };
+  updateEndpointAnnotations(u);
+}
+
+function updateEndpointAnnotations(u) {
+  const state = u._endpointAnnotations;
+  if (!state) return;
+  const overW = u.over.clientWidth;
+  const overH = u.over.clientHeight;
+  const activeIdx = currentEndpointIndex(u, state);
+  const dateIdx = activeIdx ?? latestEndpointIndex(u, state);
+  const dateXVal = dateIdx >= 0 ? u.data[0][dateIdx] : null;
+  const dateX = dateXVal == null ? null : u.valToPos(dateXVal, "x");
+
+  if (dateXVal == null || !Number.isFinite(dateX) || dateX < 0 || dateX > overW) {
+    state.cursorLine.style.display = "none";
+    state.dateLabel.style.display = "none";
+  } else {
+    state.cursorLine.style.display = "block";
+    state.cursorLine.style.left = `${dateX}px`;
+    state.dateLabel.style.display = "block";
+    state.dateLabel.textContent = formatEndpointDate(dateXVal);
+    const w = state.dateLabel.offsetWidth || 74;
+    const clampedX = Math.min(Math.max(dateX, w / 2 + 4), overW - w / 2 - 4);
+    state.dateLabel.style.left = `${clampedX}px`;
+    state.dateLabel.style.top = "13px";
+  }
+
+  for (const item of state.items) {
+    const data = u.data[item.seriesIdx];
+    const idx = activeIdx == null ? lastValidIndex(data) : activeIdx;
+    const xVal = idx == null ? null : u.data[0][idx];
+    const yVal = idx == null ? null : data[idx];
+
+    if (xVal == null || yVal == null || !Number.isFinite(yVal)) {
+      item.marker.style.display = "none";
+      item.label.style.display = "none";
+      continue;
+    }
+
+    const x = u.valToPos(xVal, "x");
+    const y = u.valToPos(yVal, item.scale);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > overW || y < 0 || y > overH) {
+      item.marker.style.display = "none";
+      item.label.style.display = "none";
+      continue;
+    }
+
+    item.marker.style.display = "block";
+    item.marker.style.left = `${x}px`;
+    item.marker.style.top = `${y}px`;
+
+    item.label.style.display = "block";
+    item.label.textContent = `${item.labelText} ${formatEndpointValue(yVal, item.unit)}`;
+    const placeLeft = x > overW - 180;
+    item.label.style.left = `${x + (placeLeft ? -8 : 8)}px`;
+    item.label.style.top = `${Math.min(Math.max(y + item.yNudge, 14), overH - 14)}px`;
+    item.label.style.transform = placeLeft ? "translate(-100%, -50%)" : "translate(0, -50%)";
+  }
+}
+
+// 通用: 雙 Y 軸 panel (左 = 指數, 右 = 融資%)
+function makeDualPanel(container, title, size, xs, idxData, pctData, idxColor, pctColor, idxLabel, pctLabel) {
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  if (title) {
+    const t = document.createElement("div");
+    t.className = "panel-title"; t.textContent = title;
+    panel.appendChild(t);
+  }
+  container.appendChild(panel);
+
+  const opts = {
+    width: size.w, height: size.h,
+    legend: { show: false },  // 關 uPlot 內建 legend (我們在 header 下自繪)
+    cursor: { drag: { x: true, y: false, setScale: true } },
+    scales: {
+      x: { time: true },
+      idx: { auto: true },
+      pct: { auto: true },
+    },
+    axes: [
+      { values: xAxisVals },
+      { scale: "idx", stroke: idxColor,
+        values: (u, vs) => vs.map(v => v.toLocaleString("en-US", {maximumFractionDigits:0})),
+        size: 60 },
+      { side: 1, scale: "pct", stroke: pctColor,
+        values: (u, vs) => vs.map(v => v.toFixed(2) + "%"),
+        size: 60, grid: { show: false } },
+    ],
+    series: [
+      {},
+      { label: idxLabel, scale: "idx", stroke: idxColor, width: 1.2,
+        dash: [6, 4],
+        value: (u, v) => v == null ? "" : v.toLocaleString("en-US", {maximumFractionDigits:2}) },
+      { label: pctLabel, scale: "pct", stroke: pctColor, width: 1.5,
+        value: (u, v) => v == null ? "" : v.toFixed(4) + "%" },
+    ],
+  };
+  const u = new uPlot(opts, [xs, idxData, pctData], panel);
+  attachWheelZoom(u, DATA.dataMin, DATA.dataMax);
+  plots.push(u);
+}
+
+// Mode A: 上下兩 panel
+function renderStacked() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-stacked";
+  area.innerHTML = "";
+  const size = getPanelSize("stacked");
+  makeDualPanel(area, "上市 (加權指數 + 融資%)", size,
+    DATA.xs, DATA.twii, DATA.twseMargin,
+    COLOR.twii, COLOR.twseMargin,
+    "加權指數", "上市融資%");
+  makeDualPanel(area, "上櫃 (OTC指數 + 融資%)", size,
+    DATA.xs, DATA.otc, DATA.tpexMargin,
+    COLOR.otcIdx, COLOR.tpexMargin,
+    "OTC指數", "上櫃融資%");
+}
+
+// 純 % 對比 (兩條 line, dual axis, no 指數)
+function renderOriginal() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-single";
+  area.innerHTML = "";
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  area.appendChild(panel);
+  const size = getPanelSize("original");
+  const opts = {
+    width: size.w, height: size.h,
+    legend: { show: false },  // 關 uPlot 內建 legend (我們在 header 下自繪)
+    cursor: { drag: { x: true, y: false, setScale: true } },
+    scales: { x: { time: true }, twse: { auto: true }, tpex: { auto: true } },
+    axes: [
+      { values: xAxisVals },
+      { scale: "twse", stroke: COLOR.twseMargin, size: 70,
+        values: (u, vs) => vs.map(v => v.toFixed(2) + "%") },
+      { side: 1, scale: "tpex", stroke: COLOR.tpexMargin, size: 70,
+        values: (u, vs) => vs.map(v => v.toFixed(2) + "%"), grid: { show: false } },
+    ],
+    series: [
+      {},
+      { label: "上市 TWSE", scale: "twse", stroke: COLOR.twseMargin, width: 1.5,
+        value: (u, v) => v==null?"":v.toFixed(4)+"%" },
+      { label: "上櫃 TPEX", scale: "tpex", stroke: COLOR.tpexMargin, width: 1.5,
+        value: (u, v) => v==null?"":v.toFixed(4)+"%" },
+    ],
+  };
+  const u = new uPlot(opts, [DATA.xs, DATA.twseMargin, DATA.tpexMargin], panel);
+  attachWheelZoom(u, DATA.dataMin, DATA.dataMax);
+  plots.push(u);
+}
+
+function pearsonR(xs, ys) {
+  const n = xs.length;
+  const mx = xs.reduce((a,b)=>a+b)/n;
+  const my = ys.reduce((a,b)=>a+b)/n;
+  let num=0, dx=0, dy=0;
+  for (let i = 0; i < n; i++) {
+    num += (xs[i]-mx) * (ys[i]-my);
+    dx  += (xs[i]-mx) ** 2;
+    dy  += (ys[i]-my) ** 2;
+  }
+  return num / Math.sqrt(dx * dy);
+}
+
+// Mode C: 散佈圖 — 兩 panel, 自繪 canvas, 含 Pearson r
+function drawScatterPanel(container, title, size, xData, yData, color, opts) {
+  opts = opts || {};
+  const xName = opts.xName || "X";
+  const yName = opts.yName || "Y";
+  const yFmt  = opts.yFmt  || ((v) => v.toFixed(2) + "%");
+  const xFmt  = opts.xFmt  || ((v) => v.toLocaleString("en-US", {maximumFractionDigits: 0}));
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  panel.style.width = size.w + "px";
+  panel.style.height = size.h + "px";
+  if (title) {
+    const t = document.createElement("div");
+    t.className = "panel-title"; t.textContent = title;
+    panel.appendChild(t);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = size.w; canvas.height = size.h;
+  panel.appendChild(canvas);
+  container.appendChild(panel);
+
+  const ctx = canvas.getContext("2d");
+  const M = { l: 70, r: 16, t: 32, b: 36 };
+  const W = size.w - M.l - M.r, H = size.h - M.t - M.b;
+  const points = xData.map((x, i) => [x, yData[i]])
+                      .filter(([x, y]) => x != null && y != null);
+  if (!points.length) return;
+  const xs = points.map(p => p[0]), ys = points.map(p => p[1]);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+
+  ctx.font = "11px sans-serif";
+  ctx.fillStyle = "#666";
+  ctx.strokeStyle = "#eee";
+  for (let i = 0; i <= 5; i++) {
+    const py = M.t + H * (1 - i / 5);
+    const yval = yMin + (yMax - yMin) * i / 5;
+    ctx.textAlign = "right";
+    ctx.fillText(yFmt(yval), M.l - 6, py + 4);
+    ctx.beginPath(); ctx.moveTo(M.l, py); ctx.lineTo(M.l + W, py); ctx.stroke();
+  }
+  for (let i = 0; i <= 6; i++) {
+    const px = M.l + W * i / 6;
+    const xval = xMin + (xMax - xMin) * i / 6;
+    ctx.textAlign = "center";
+    ctx.fillText(xFmt(xval), px, M.t + H + 18);
+  }
+  ctx.strokeStyle = "#888";
+  ctx.beginPath();
+  ctx.moveTo(M.l, M.t); ctx.lineTo(M.l, M.t + H); ctx.lineTo(M.l + W, M.t + H);
+  ctx.stroke();
+
+  // 點: 時間 alpha gradient (淡 → 濃 = 早 → 晚)
+  for (let i = 0; i < points.length; i++) {
+    const [x, y] = points[i];
+    const px = M.l + (x - xMin) / (xMax - xMin) * W;
+    const py = M.t + (1 - (y - yMin) / (yMax - yMin)) * H;
+    const alpha = 0.15 + 0.55 * (i / points.length);
+    ctx.fillStyle = color + Math.round(alpha * 255).toString(16).padStart(2, "0");
+    ctx.beginPath();
+    ctx.arc(px, py, 2.2, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+
+  // r → 白話: 弱相關時不加方向 (太接近 0 時 + / - 沒實質意義)
+  const r = pearsonR(xs, ys);
+  const absR = Math.abs(r);
+  let verdict;
+  if (absR < 0.3)      verdict = "幾乎不相關 (指數漲跌跟融資% 沒對應)";
+  else if (absR < 0.6) verdict = r > 0 ? "中度同步 (指數漲, 融資% 多半也漲)" : "中度反向";
+  else                 verdict = r > 0 ? "強同步 (指數跟融資% 大致一起動)"  : "強反向 (指數漲時融資% 反而跌)";
+
+  ctx.fillStyle = color;
+  ctx.font = "bold 13px sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText(`同步度 ${r.toFixed(2)} → ${verdict}`,
+               M.l + W - 8, M.t + 18);
+  ctx.fillStyle = "#666";
+  ctx.font = "11px sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText(`(n=${points.length}, 範圍 -1 反向 ~ 0 無關 ~ +1 同步)`,
+               M.l + W - 8, M.t + 32);
+  ctx.textAlign = "left";
+  ctx.fillText("● 點顏色: 淡 = 早 (2020), 濃 = 近 (2026)", M.l + 4, M.t + 18);
+}
+
+function renderScatter() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-stacked";
+  area.innerHTML = "";
+  const size = getPanelSize("stacked");
+  drawScatterPanel(area, "上市: 加權指數 (X) vs 上市融資% (Y)",
+                   size, DATA.twii, DATA.twseMargin, COLOR.twseMargin);
+  drawScatterPanel(area, "上櫃: OTC指數 (X) vs 上櫃融資% (Y)",
+                   size, DATA.otc, DATA.tpexMargin, COLOR.tpexMargin);
+}
+
+// 雙 Y 軸 panel + cursor sync；可設定哪個軸畫 0 線、哪條線是虛線。
+function makeStockFutPanel(container, title, size, xs, leftData, rightData,
+                           leftColor, rightColor, leftLabel, rightLabel,
+                           leftUnit, rightUnit, withLeftZero, syncKey, extraOpts = {}) {
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  if (title) {
+    const t = document.createElement("div");
+    t.className = "panel-title"; t.textContent = title;
+    panel.appendChild(t);
+  }
+  container.appendChild(panel);
+
+  const hasLeftDash = Object.prototype.hasOwnProperty.call(extraOpts, "leftDash");
+  const hasRightDash = Object.prototype.hasOwnProperty.call(extraOpts, "rightDash");
+  const leftDash = hasLeftDash ? (extraOpts.leftDash || []) : [];
+  const rightDash = hasRightDash ? (extraOpts.rightDash || []) : [6, 3];
+  const leftWidth = extraOpts.leftWidth || 1.5;
+  const rightWidth = extraOpts.rightWidth || 1.3;
+  const zeroScale = extraOpts.zeroScale ?? (withLeftZero ? "left" : null);
+  const leftAxisSize = extraOpts.leftAxisSize ?? (leftUnit ? 88 : 80);
+  const rightAxisSize = extraOpts.rightAxisSize ?? (rightUnit ? 92 : 70);
+
+  const opts = {
+    width: size.w, height: size.h,
+    legend: { show: false },
+    cursor: {
+      drag: { x: true, y: false, setScale: true },
+      // sync key 共用 → cursor 跨 panel 同步:
+      //   - vertical probe line (預設)
+      //   - setSeries (hover 該 series 連動 sibling)
+      //   - scales: ["x", null] → drag-frame zoom 也 sync x scale (y 不同 panel 不 sync)
+      sync: { key: syncKey, setSeries: true, scales: ["x", null] },
+    },
+    scales: { x: { time: true }, left: { auto: true }, right: { auto: true } },
+    axes: [
+      { values: xAxisVals },
+      { scale: "left", stroke: leftColor, size: leftAxisSize,
+        values: (u, vs) => vs.map(v => formatAxisValue(v, leftUnit)) },
+      { side: 1, scale: "right", stroke: rightColor, size: rightAxisSize,
+        values: (u, vs) => vs.map(v => formatAxisValue(v, rightUnit)),
+        grid: { show: false } },
+    ],
+    series: [
+      {},
+      { label: leftLabel, scale: "left", stroke: leftColor, width: leftWidth,
+        dash: leftDash,
+        value: (u, v) => v == null ? "" :
+          v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " " + leftUnit },
+      { label: rightLabel, scale: "right", stroke: rightColor, width: rightWidth,
+        dash: rightDash,
+        value: (u, v) => v == null ? "" :
+          v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " " + rightUnit },
+    ],
+  };
+
+  if (zeroScale) {
+    pushHook(opts, "drawAxes", (u) => {
+      const yZero = u.valToPos(0, zeroScale, true);
+      if (yZero >= u.bbox.top && yZero <= u.bbox.top + u.bbox.height) {
+        const ctx = u.ctx;
+        ctx.save();
+        ctx.strokeStyle = "#888";
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(u.bbox.left, yZero);
+        ctx.lineTo(u.bbox.left + u.bbox.width, yZero);
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
+  }
+
+  if (extraOpts.annotateEndpoints) {
+    const annotationConfigs = [
+      { seriesIdx: 1, scale: "left", color: leftColor, labelText: leftLabel, unit: leftUnit },
+      { seriesIdx: 2, scale: "right", color: rightColor, labelText: rightLabel, unit: rightUnit },
+    ];
+    pushHook(opts, "ready", (u) => initEndpointAnnotations(u, annotationConfigs, syncKey));
+    pushHook(opts, "setCursor", updateEndpointAnnotations);
+    pushHook(opts, "setScale", updateEndpointAnnotations);
+  }
+
+  const u = new uPlot(opts, [xs, leftData, rightData], panel);
+  attachWheelZoom(u, DATA.dataMinAll, DATA.dataMaxAll);
+  plots.push(u);
+}
+
+// Category: cp_vs_index — Panel 1 time series (cp + 漲跌%) + Panel 2 散佈圖
+const HORIZON_LABEL = {
+  0:  "T 同期 (當天)",
+  1:  "T+1 隔日",
+  5:  "T+5 一週",
+  20: "T+20 一個月",
+};
+
+let CURRENT_HORIZON = 0;
+
+// 3-series time-series panel: cp 當天 細實 + cp 5d 平均 粗實 + 漲跌% 右軸虛線
+// (sync key 共享 → cursor probe 跨 panel; 0 線繪在左+右軸)
+function makeCpTimeSeriesPanel(container, title, size, xs, cpDaily, cp5d, returnArr, horizonLabel, syncKey) {
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  if (title) {
+    const t = document.createElement("div");
+    t.className = "panel-title"; t.textContent = title;
+    panel.appendChild(t);
+  }
+  container.appendChild(panel);
+
+  const opts = {
+    width: size.w, height: size.h,
+    legend: { show: false },
+    cursor: {
+      drag: { x: true, y: false, setScale: true },
+      sync: { key: syncKey, setSeries: true, scales: ["x", null] },
+    },
+    scales: { x: { time: true }, left: { auto: true }, right: { auto: true } },
+    axes: [
+      { values: xAxisVals },
+      { scale: "left", stroke: COLOR.cpNet, size: 80,
+        values: (u, vs) => vs.map(v => v.toLocaleString("en-US", {maximumFractionDigits: 0})) },
+      { side: 1, scale: "right", stroke: COLOR.twiiReturn, size: 60,
+        values: (u, vs) => vs.map(v => v.toFixed(1) + "%"),
+        grid: { show: false } },
+    ],
+    series: [
+      {},
+      { label: "法人CP 當天", scale: "left", stroke: COLOR.cpNet,
+        width: 0.9,                            // 細, 看 noise
+        value: (u, v) => v == null ? "" : v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " 口" },
+      { label: "5日平均 (持續性)", scale: "left", stroke: "#155e75",  // 深 teal, 加粗
+        width: 1.8,                            // 粗, 看趨勢
+        value: (u, v) => v == null ? "" : v.toLocaleString("en-US", {maximumFractionDigits: 0}) + " 口" },
+      { label: `加權 ${horizonLabel} 漲跌%`, scale: "right", stroke: COLOR.twiiReturn,
+        width: 1.2, dash: [6, 3],              // 虛線 right axis 參照
+        value: (u, v) => v == null ? "" : v.toFixed(2) + "%" },
+    ],
+    hooks: {
+      // 左軸 0 線 (cp 多空中性) + 右軸 0 線 (漲跌平) 都畫
+      drawAxes: [(u) => {
+        const ctx = u.ctx;
+        const drawZero = (scale, color) => {
+          const yZero = u.valToPos(0, scale, true);
+          if (yZero >= u.bbox.top && yZero <= u.bbox.top + u.bbox.height) {
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.0;
+            ctx.setLineDash([5, 4]);
+            ctx.beginPath();
+            ctx.moveTo(u.bbox.left, yZero);
+            ctx.lineTo(u.bbox.left + u.bbox.width, yZero);
+            ctx.stroke();
+            ctx.restore();
+          }
+        };
+        drawZero("left",  "#888");
+        drawZero("right", "#bbb");
+      }],
+    },
+  };
+  const u = new uPlot(opts, [xs, cpDaily, cp5d, returnArr], panel);
+  attachWheelZoom(u, DATA.dataMinAll, DATA.dataMaxAll);
+  plots.push(u);
+}
+
+function renderCpVsIndex() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-stacked";
+  area.innerHTML = "";
+  const size = getPanelSize("stacked");
+  const horizon = CURRENT_HORIZON;
+  const returns = DATA.returnsByHorizon[horizon];
+  const label = HORIZON_LABEL[horizon];
+  const syncKey = "cpidx_sync_" + horizon;
+
+  // Panel 1: time series, 3 series (cp 細實 + 5日平均 粗實 + 漲跌% 右軸虛)
+  makeCpTimeSeriesPanel(area,
+    `法人CP合計 (左軸 口) ↔ 加權 ${label} 漲跌% (右軸) — 細線=當天 cp, 粗線=5日平均(看持續性), 虛線=漲跌%, 0 線虛灰 各軸獨立`,
+    size, DATA.xsAll, DATA.cpNet, DATA.cpNet5d, returns, label, syncKey);
+
+  // Panel 2: scatter (X = cp 當天, Y = horizon 漲跌%) + 同步度白話
+  drawScatterPanel(area,
+    `散佈圖: X = 法人CP合計多空 (口) ↔ Y = 加權 ${label} 漲跌% — 看 statistical 連動度`,
+    size, DATA.cpNet, returns, COLOR.cpNet,
+    { xName: "法人CP", yName: `加權${label}漲跌`,
+      yFmt: (v) => v.toFixed(2) + "%",
+      xFmt: (v) => v.toLocaleString("en-US", {maximumFractionDigits: 0}) });
+}
+
+function setHorizon(h) {
+  CURRENT_HORIZON = h;
+  destroyPlots();
+  document.querySelectorAll("#cpHorizonBar .mode-btn").forEach(b =>
+    b.classList.toggle("active", parseInt(b.dataset.horizon) === h));
+  renderLegend("cpidx");
+  requestAnimationFrame(() => renderCpVsIndex());
+}
+
+// Category: stock_fut — 2 dual-axis panel, cursor sync 跨 panel
+function renderStockFut() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-stacked";
+  area.innerHTML = "";
+  const size = getPanelSize("stacked");          // 2 panel = (h-12)/2
+  const syncKey = "stockfut_sync";               // 同 key → 兩 panel cursor 同步
+  // Panel 1: 台指期 (左, 灰虛線 = 參照) + 股期淨部位 (右, 紫實線)
+  makeStockFutPanel(area,
+    "台指期 近月收盤 (左軸 點, 灰虛線=參照) ↔ 股期法人淨部位 (右軸 口, 紫實線) — 0 線虛灰=右軸",
+    size, DATA.xsAll, DATA.txClose, DATA.stockFut,
+    COLOR.txClose, COLOR.stockFut,
+    "台指期", "股期淨部位",
+    "點", "口",
+    false, syncKey,
+    {
+      leftDash: [6, 3],
+      leftWidth: 1.3,
+      rightDash: null,
+      rightWidth: 1.5,
+      zeroScale: "right",
+      annotateEndpoints: true,
+    });
+  // Panel 2: 台指期 (左, 灰虛線 = 參照) + 期現價差 (右, 翠綠實線, 含 0 線)
+  makeStockFutPanel(area,
+    "台指期 近月收盤 (左軸 點, 灰虛線=參照) ↔ 期現價差 = 台指期 - 加權 (右軸 點, 翠綠實線) — 0 線=升貼水分界",
+    size, DATA.xsAll, DATA.txClose, DATA.basis,
+    COLOR.txClose, COLOR.basis,
+    "台指期", "期現價差",
+    "點", "點",
+    false, syncKey,
+    {
+      leftDash: [6, 3],
+      leftWidth: 1.3,
+      rightDash: null,
+      rightWidth: 1.5,
+      zeroScale: "right",
+      annotateEndpoints: true,
+    });
+}
+
+// Category: tx_fut_net — 單張左右軸圖，台指期法人淨部位 vs 台指期點位
+function renderTxFutNet() {
+  const area = document.getElementById("chartArea");
+  area.className = "layout-single";
+  area.innerHTML = "";
+  const size = getPanelSize("single");
+  makeStockFutPanel(area,
+    "台指期法人淨部位 (左軸 口, 實線) ↔ 台指期近月收盤 (右軸 點, 灰虛線) — 左軸 0 線可看法人淨多/淨空分界",
+    size, DATA.xsAll, DATA.txFutNet, DATA.txClose,
+    COLOR.txFutNet, COLOR.txClose,
+    "台指期法人淨部位", "台指期",
+    "口", "點",
+    true, "txfutnet_sync");
+}
+
+const RENDER = {
+  stacked:  renderStacked,
+  original: renderOriginal,
+  scatter:  renderScatter,
+};
+
+const LEGENDS = {
+  stacked:  [["twii","加權指數 (虛)"], ["twseMargin","上市融資%"], ["otcIdx","OTC指數 (虛)"], ["tpexMargin","上櫃融資%"]],
+  original: [["twseMargin","上市 TWSE"], ["tpexMargin","上櫃 TPEX"]],
+  scatter:  [["twseMargin","上市點 (X=加權, Y=融資%)"], ["tpexMargin","上櫃點 (X=OTC, Y=融資%)"]],
+  stockfut: [
+    ["stockFut", "股期淨部位 (上 panel 右軸, 口)"],
+    ["basis",    "期現價差 (下 panel 右軸, 點)"],
+    ["txClose",  "台指期 (兩 panel 左軸, 點, 虛線)"],
+  ],
+  txfutnet: [
+    ["txFutNet", "台指期法人淨部位 (左軸, 口)"],
+    ["txClose",  "台指期近月收盤 (右軸, 點, 虛線)"],
+  ],
+  cpidx: [
+    ["cpNet",      "法人CP 當天 (左軸 細線)"],
+    ["cpNet",      "5日平均 (持續性, 深 teal 粗實線)"],
+    ["twiiReturn", "加權漲跌% (右軸 灰虛線)"],
+  ],
+};
+
+function renderLegend(mode) {
+  const el = document.getElementById("legend");
+  const items = LEGENDS[mode] || [];
+  el.innerHTML = items.map(([k, label]) => {
+    const isDash = label.includes("虛") || (mode === "combined" && (k === "twii" || k === "otcIdx"));
+    const sw = isDash
+      ? `<span class="legend-color dashed" style="color:${COLOR[k]}"></span>`
+      : `<span class="legend-color" style="background:${COLOR[k]}"></span>`;
+    return `<span class="legend-item">${sw}<span>${label}</span></span>`;
+  }).join("") + `<span class="hint">滑鼠滾輪 zoom · 拖曳框選 zoom · 雙擊 reset</span>`;
+}
+
+function setMode(mode) {
+  destroyPlots();
+  document.querySelectorAll(".mode-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.mode === mode));
+  renderLegend(mode);
+  requestAnimationFrame(() => RENDER[mode]());
+}
+
+let CURRENT_CATEGORY = "margin";
+
+function setCategory(cat) {
+  CURRENT_CATEGORY = cat;
+  const modeBar = document.getElementById("modeBar");
+  const cpHorizonBar = document.getElementById("cpHorizonBar");
+  destroyPlots();
+  modeBar.style.display = "none";
+  cpHorizonBar.style.display = "none";
+  if (cat === "margin") {
+    modeBar.style.display = "flex";
+    const active = document.querySelector("#modeBar .mode-btn.active");
+    setMode(active ? active.dataset.mode : "stacked");
+  } else if (cat === "stock_fut") {
+    renderLegend("stockfut");
+    requestAnimationFrame(() => {
+      renderStockFut();
+      document.getElementById("chartArea").focus({preventScroll: true});
+    });
+  } else if (cat === "tx_fut_net") {
+    renderLegend("txfutnet");
+    requestAnimationFrame(() => renderTxFutNet());
+  } else if (cat === "cp_vs_index") {
+    cpHorizonBar.style.display = "flex";
+    const active = document.querySelector("#cpHorizonBar .mode-btn.active");
+    setHorizon(active ? parseInt(active.dataset.horizon) : 0);
+  }
+}
+
+function handleResize() {
+  if (CURRENT_CATEGORY === "stock_fut") {
+    destroyPlots();
+    requestAnimationFrame(() => renderStockFut());
+  } else if (CURRENT_CATEGORY === "tx_fut_net") {
+    destroyPlots();
+    requestAnimationFrame(() => renderTxFutNet());
+  } else if (CURRENT_CATEGORY === "cp_vs_index") {
+    destroyPlots();
+    requestAnimationFrame(() => renderCpVsIndex());
+  } else {
+    const active = document.querySelector("#modeBar .mode-btn.active");
+    if (active) setMode(active.dataset.mode);
+  }
+}
+
+async function init() {
+  const r = await fetch(COMP_URL + _bust()).then(r => r.json());
+  const rows = (r.rows || []).filter(x =>
+    x.twse_margin_pct != null && x.tpex_margin_pct != null
+  );
+  if (!rows.length) {
+    document.getElementById("chartArea").textContent = "(無資料)";
+    return;
+  }
+  const xs         = rows.map(x => Math.floor(new Date(x.date+"T00:00:00").getTime()/1000));
+  const twseMargin = rows.map(x => x.twse_margin_pct * 100);
+  const tpexMargin = rows.map(x => x.tpex_margin_pct * 100);
+  const twii       = rows.map(x => x.twii_close);
+  const otc        = rows.map(x => x.tpex_index_close);
+  // stock_fut + cp_vs_index 用全部 rows (不 filter margin)
+  const allRows  = (r.rows || []).slice();
+  const xsAll    = allRows.map(x => Math.floor(new Date(x.date+"T00:00:00").getTime()/1000));
+  const stockFut = allRows.map(x => x.stock_fut_legal_net);
+  const txFutNet = allRows.map(x => x.op_legal_net);
+  const txClose  = allRows.map(x => x.tx_close);
+  const basis    = allRows.map(x =>
+    (x.tx_close != null && x.twii_close != null) ? x.tx_close - x.twii_close : null);
+  const cpNet    = allRows.map(x => x.op_cp_net);
+  const twiiArr  = allRows.map(x => x.twii_close);
+
+  // Rolling N-day mean — 平滑線看「持續性偏多/偏空」狀態
+  function rollingMean(arr, win) {
+    const n = arr.length;
+    const out = new Array(n).fill(null);
+    for (let i = win - 1; i < n; i++) {
+      let sum = 0, cnt = 0;
+      for (let j = i - win + 1; j <= i; j++) {
+        if (arr[j] != null) { sum += arr[j]; cnt++; }
+      }
+      if (cnt === win) out[i] = sum / win;
+    }
+    return out;
+  }
+  const cpNet5d = rollingMean(cpNet, 5);
+
+  // T 同期 = (twii[i] / twii[i-1] - 1) * 100  (當天漲跌幅)
+  // T+N    = (twii[i+N] / twii[i] - 1) * 100  (從 T 收盤往後累計 N 日)
+  function futureReturn(twii, horizon) {
+    const n = twii.length;
+    const out = new Array(n).fill(null);
+    if (horizon === 0) {
+      for (let i = 1; i < n; i++) {
+        if (twii[i] == null || twii[i-1] == null) continue;
+        out[i] = (twii[i] / twii[i-1] - 1) * 100;
+      }
+    } else {
+      for (let i = 0; i < n - horizon; i++) {
+        if (twii[i] == null || twii[i + horizon] == null) continue;
+        out[i] = (twii[i + horizon] / twii[i] - 1) * 100;
+      }
+    }
+    return out;
+  }
+  const returnsByHorizon = {
+    0:  futureReturn(twiiArr, 0),
+    1:  futureReturn(twiiArr, 1),
+    5:  futureReturn(twiiArr, 5),
+    20: futureReturn(twiiArr, 20),
+  };
+
+  DATA = {
+    xs, twseMargin, tpexMargin, twii, otc,
+    xsAll, stockFut, txFutNet, txClose, basis,
+    cpNet, cpNet5d, returnsByHorizon,
+    dataMin: xs[0], dataMax: xs[xs.length-1],
+    dataMinAll: xsAll[0], dataMaxAll: xsAll[xsAll.length-1],
+  };
+
+  document.querySelectorAll("#modeBar .mode-btn").forEach(b =>
+    b.addEventListener("click", () => setMode(b.dataset.mode)));
+  document.querySelectorAll("#cpHorizonBar .mode-btn").forEach(b =>
+    b.addEventListener("click", () => setHorizon(parseInt(b.dataset.horizon))));
+  document.getElementById("categorySelect").addEventListener("change", (e) =>
+    setCategory(e.target.value));
+  const chartArea = document.getElementById("chartArea");
+  chartArea.tabIndex = 0;
+  chartArea.addEventListener("mousedown", () => {
+    if (CURRENT_CATEGORY === "stock_fut") chartArea.focus({preventScroll: true});
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const tag = document.activeElement ? document.activeElement.tagName : "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") return;
+    const moved = moveEndpointCursor(e.key === "ArrowLeft" ? -1 : 1);
+    if (moved) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+  window.addEventListener("resize", () => {
+    clearTimeout(window._resizeT);
+    window._resizeT = setTimeout(handleResize, 150);
+  });
+
+  const initialCategory = new URLSearchParams(window.location.search).get("category") || "margin";
+  const validCategories = new Set(["margin", "stock_fut", "tx_fut_net", "cp_vs_index"]);
+  const category = validCategories.has(initialCategory) ? initialCategory : "margin";
+  document.getElementById("categorySelect").value = category;
+  setCategory(category);  // default: 融資餘額 (= margin), 顯示 stacked mode
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# docs/ 是 export_static.py 產生的靜態站，JSON 不做行尾轉換（避免巨量檔案
+# CRLF 正規化拖慢 git，且這些是機器產生物）。
+docs/data/** -text
+*.json -text

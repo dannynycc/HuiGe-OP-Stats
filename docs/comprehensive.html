@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <script>window.__STATIC__=true;</script>
+<meta charset="utf-8">
+<title>綜合整理 — 柴柴法人部位彙整</title>
+<style>
+  /* Mirror Excel 「綜合整理」 sheet exactly:
+     - no borders, no fill, no zebra
+     - 標楷體 sz 12 (~16px), color theme1 (black), no bold
+     - frozen header (前 2 row)
+     - column widths from sheet110 col definitions
+     - numFmt per Excel: 千分位 + 紅色負括號 / 4-位小數百分比 / 2-位小數兆元
+  */
+  :root {
+    --bg: #ffffff;
+    --fg: #000000;
+    --muted: #6b7280;
+    --neg-text: #FF0000;
+    --header-bg: #f1f5f9;
+    --row-stripe: #fafafa;
+  }
+  * { box-sizing: border-box; }
+  /* 頁面 layout: body 滿 viewport, no body scroll;
+     .table-wrap 內部 scroll → sticky thead pins to wrap top correctly. */
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "DFKai-SB", "BiauKai", "標楷體", "Kaiti TC", "Kaiti SC", "Microsoft JhengHei", serif;
+    font-size: 16px;
+    font-weight: normal;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    padding: 10px 16px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    font-size: 13px;
+    background: #fff;
+    flex-shrink: 0;     /* 固定高度, 不被 scroll 帶走 */
+  }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; }
+  header a { color: #2c5aa0; text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+
+  .table-wrap {
+    padding: 10px 16px;
+    box-sizing: border-box;
+    flex: 1;             /* 填滿 viewport 剩下空間 */
+    overflow-y: auto;    /* 內部 scroll, sticky pins 到 wrap 頂 */
+    overflow-x: auto;
+  }
+  /* IMPORTANT: border-collapse:collapse breaks position:sticky on <th> in
+     Chromium/Edge — thead scrolls away with rows. Must use separate + 0 spacing.
+     Trade-off: borders no longer collapse so we draw on right+bottom only and
+     let table's outer border close it off. */
+  table.zonghe {
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0 auto;
+    font-family: inherit;
+    font-size: 14px;
+    width: 100%;
+    table-layout: fixed;
+    border-left: 1px solid #d0d0d0;
+    border-top: 1px solid #d0d0d0;
+  }
+  table.zonghe th, table.zonghe td {
+    padding: 3px 5px;
+    white-space: nowrap;
+    text-align: right;
+    font-weight: normal;
+    color: var(--fg);
+    background: #fff;
+    border-right: 1px solid #d0d0d0;
+    border-bottom: 1px solid #d0d0d0;
+  }
+  /* v0.10.43 user: 字短的窄 col 縮 padding (台指期/OTC/融資餘額/總市值 全用 3px 2px) */
+  table.zonghe th:nth-child(4),  table.zonghe td:nth-child(4),
+  table.zonghe th:nth-child(5),  table.zonghe td:nth-child(5),
+  table.zonghe th:nth-child(15), table.zonghe td:nth-child(15),
+  table.zonghe th:nth-child(16), table.zonghe td:nth-child(16),
+  table.zonghe th:nth-child(17), table.zonghe td:nth-child(17),
+  table.zonghe th:nth-child(18), table.zonghe td:nth-child(18) {
+    padding: 3px 2px;
+  }
+  table.zonghe thead th {
+    background: var(--header-bg);
+    color: var(--fg);
+    text-align: center;
+    border-right: 1px solid #888;
+    border-bottom: 1px solid #888;
+    position: sticky;
+    z-index: 3;
+    white-space: nowrap;        /* title 不折行 */
+  }
+  table.zonghe thead tr:nth-child(1) th { top: 0; z-index: 4; }
+  table.zonghe thead tr:nth-child(2) th {
+    top: var(--r1-height, 22px);  /* JS measures real R1 height after render */
+    z-index: 3;
+  }
+  /* Excel has no zebra stripe — pure white. Hover 淡藍 (區別於 settlement 黃) */
+  table.zonghe tbody tr:hover td { background: #DBEAFE; }   /* sky-200 light blue */
+
+  /* Negative values get red — qualify selector to beat .zonghe td { color } (0,1,2) */
+  table.zonghe td.neg { color: var(--neg-text); }
+  /* For 開盤前看 col cells clickable → 跳到主表該日 */
+  table.zonghe td.clickable { cursor: pointer; color: #2c5aa0; }
+  table.zonghe td.clickable:hover { text-decoration: underline; background: #DBEAFE !important; }
+  /* 電子選擇權 (TEO) 月選結算日 — 比 cornsilk 更明顯的 amber */
+  table.zonghe tbody tr.settlement td { background: #FEF3C7; }   /* amber-100 */
+  /* settlement + hover: 黃底加深 + 上下藍邊框, 視覺保留 settlement 識別 */
+  table.zonghe tbody tr.settlement:hover td {
+    background: #FDE68A;   /* amber-200 deeper */
+    box-shadow: inset 0 2px 0 #2563EB, inset 0 -2px 0 #2563EB;
+  }
+  /* col widths via <colgroup> — 確保 group 下的 上市/上櫃 sub-col 等寬 */
+  table.zonghe { table-layout: fixed; }
+
+  /* 轉圈 spinner — refresh 跑時顯示 */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid #cbd5e1;
+    border-top-color: #2c5aa0;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* nav-btn 切回主表, 跟 index.html 同樣式統一視覺語言 */
+  .nav-btn {
+    display: inline-block;
+    background: #fff; color: #2c5aa0;
+    border: 2px solid #2c5aa0;
+    padding: 5px 14px; border-radius: 4px;
+    text-decoration: none; font-weight: 600; font-size: 13px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-btn:hover { background: #2c5aa0; color: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>綜合整理</h1>
+  <span style="color:var(--muted)">柴柴 — 期交所法人部位彙整 ‧ 全部歷史</span>
+  <button id="btnRefresh" style="background:#2c5aa0;color:#fff;border:0;padding:7px 14px;border-radius:4px;cursor:pointer;font-weight:600;font-size:13px;margin-left:8px">Refresh 抓最新</button>
+  <a href="chart.html" class="nav-btn" style="margin-left:8px">📈 走勢圖</a>
+  <a href="index.html" class="nav-btn" style="margin-left:8px">← 回主表 (For X 開盤前看)</a>
+  <span id="refreshInfo" style="color:var(--muted);font-size:13px;margin-left:12px"></span>
+  <span id="status" style="color:var(--muted);font-size:13px;margin-left:auto"></span>
+</header>
+
+<div class="table-wrap">
+  <table class="zonghe" id="zonghe">
+    <colgroup>
+      <col style="width:108px">  <!-- A: For 開盤前看 (date, 11 chars) -->
+      <col style="width:108px">  <!-- B: 前一日日盤Data (date, 11 chars) -->
+      <col style="width:90px">   <!-- C: 加權指數 (4 chars) -->
+      <col style="width:60px">   <!-- D: 台指期 日盤收盤 (3 字, padding 已縮) -->
+      <col style="width:65px">   <!-- E: OTC指數 (4 字 + "410.29" 6 chars, padding 已縮) -->
+      <col style="width:88px">   <!-- E: 台指期 法人淨部位 -->
+      <col style="width:90px">   <!-- F: 台指期 開盤前多空 -->
+      <col style="width:108px">  <!-- G: 法人買權CALL — 6 中 + 4 英 -->
+      <col style="width:100px">  <!-- H: 法人賣權PUT — 5 中 + 3 英 -->
+      <col style="width:118px">  <!-- I: 法人CP合計多空 — 5 中 + 2 英 -->
+      <col style="width:90px">   <!-- J: 選擇權 開盤前多空 -->
+      <col style="width:88px">   <!-- K: 股票期貨 法人淨部位 -->
+      <col style="width:60px">   <!-- L: 上市 -->
+      <col style="width:60px">   <!-- M: 上櫃 -->
+      <col style="width:76px">   <!-- N: 上市(億元) max "12,102" 6 chars, padding 縮 -->
+      <col style="width:76px">   <!-- O: 上櫃(億元) -->
+      <col style="width:78px">   <!-- P: 上市(兆元) max "(134.16)" 8 chars, padding 縮 -->
+      <col style="width:78px">   <!-- Q: 上櫃(兆元) -->
+    </colgroup>
+    <thead>
+      <!-- R1: group header.
+           「指數收盤」 colspan=3 (加權指數 + 台指期日盤收盤 + OTC指數)
+           「台指期」 colspan=2 (法人淨部位 + 開盤前多空 = 大台等效 OI+夜盤)
+           「選擇權未平倉」 colspan=4 (CALL / PUT / CP / 開盤前多空 = CP+夜盤)
+      -->
+      <tr>
+        <th></th>
+        <th></th>
+        <th colspan="3">指數收盤</th>
+        <th colspan="2">台指期</th>
+        <th colspan="4">選擇權未平倉</th>
+        <th>股票期貨</th>
+        <th colspan="2">融資餘額佔市值比</th>
+        <th colspan="2">融資餘額</th>
+        <th colspan="2">總市值</th>
+      </tr>
+      <!-- R2: column header (18 cells, full row) — 原始 Excel layout titles -->
+      <tr>
+        <th>For 開盤前看</th>
+        <th>前一日日盤Data</th>
+        <th>加權指數</th>
+        <th>台指期</th>
+        <th>OTC指數</th>
+        <th>法人淨部位</th>
+        <th>開盤前多空</th>
+        <th>法人買權CALL</th>
+        <th>法人賣權PUT</th>
+        <th>法人CP合計多空</th>
+        <th>開盤前多空</th>
+        <th>法人淨部位</th>
+        <th>上市</th>
+        <th>上櫃</th>
+        <th>上市(億元)</th>
+        <th>上櫃(億元)</th>
+        <th>上市(兆元)</th>
+        <th>上櫃(兆元)</th>
+      </tr>
+    </thead>
+    <tbody id="zhBody">
+      <tr><td colspan="18" style="text-align:center;color:var(--muted);padding:30px">(載入中…)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+"use strict";
+
+// 靜態 (GitHub Pages) 模式：docs/ 版本會注入 window.__STATIC__ = true。
+const STATIC = window.__STATIC__ === true;
+const COMP_URL = STATIC ? "./data/comprehensive.json" : "/api/comprehensive";
+const _bust = () => STATIC ? `?_=${Date.now()}` : "";
+
+const MD_DAY = ["日","一","二","三","四","五","六"];
+function fmtMD(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  const w = new Date(iso + "T00:00:00").getDay();
+  return `${y}/${m}/${d}(${MD_DAY[w]})`;   // 帶年份
+}
+
+// numFmt mirror Excel:
+// 千分位 + 紅色負括號 (Excel #,##0_);[Red](#,##0))
+function fmtParenInt(v) {
+  if (v == null || isNaN(v)) return "";
+  const n = Math.round(v);
+  if (n < 0) return "(" + Math.abs(n).toLocaleString("en-US") + ")";
+  return n.toLocaleString("en-US") + '<span style="visibility:hidden">)</span>';
+}
+// 千分位（無括號，台指期日盤收盤用）— numFmt #,##0_
+function fmtPlainInt(v) {
+  if (v == null || isNaN(v)) return "";
+  const n = Math.round(v);
+  return n.toLocaleString("en-US");
+}
+// 加權指數: 千分位 + 2 位小數
+function fmtTwii(v) {
+  if (v == null || isNaN(v)) return "";
+  return v.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+function tdTwii(v) {
+  if (v == null) return "<td></td>";
+  return `<td>${fmtTwii(v)}</td>`;
+}
+// 4-位小數百分比 — Excel 0.0000%
+function fmtPct(v) {
+  if (v == null || isNaN(v)) return "";
+  return (v * 100).toFixed(4) + "%";
+}
+// 2-位小數，紅色負括號 (兆元用)
+function fmtParen2(v) {
+  if (v == null || isNaN(v)) return "";
+  const sign = v < 0 ? "(" : "";
+  const close = v < 0 ? ")" : '<span style="visibility:hidden">)</span>';
+  return sign + Math.abs(v).toFixed(2) + close;
+}
+// Accounting format, 千分位 (融資餘額億元 — 通常正數，no paren needed)
+function fmtAccountingInt(v) {
+  if (v == null || isNaN(v)) return "";
+  return Math.round(v).toLocaleString("en-US");
+}
+
+function tdParenInt(v) {
+  if (v == null) return "<td></td>";
+  const cls = v < 0 ? " class=neg" : "";
+  return `<td${cls}>${fmtParenInt(v)}</td>`;
+}
+function tdPlainInt(v) {
+  if (v == null) return "<td></td>";
+  const cls = v < 0 ? " class=neg" : "";
+  return `<td${cls}>${fmtPlainInt(v)}</td>`;
+}
+function tdPct(v) {
+  if (v == null) return "<td></td>";
+  const cls = v < 0 ? " class=neg" : "";
+  return `<td${cls}>${fmtPct(v)}</td>`;
+}
+// Excel-style 3-color scale: green (low) → yellow (mid) → red (high)
+// ratio in [0,1]; under 0.5 = green→yellow, over 0.5 = yellow→red.
+function colorScale(ratio) {
+  const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+  // anchors (RGB)
+  const G = [99, 190, 123];   // green
+  const Y = [255, 235, 132];  // yellow
+  const R = [248, 113, 113];  // red
+  if (ratio <= 0.5) {
+    const t = ratio * 2;
+    return `rgb(${lerp(G[0],Y[0],t)},${lerp(G[1],Y[1],t)},${lerp(G[2],Y[2],t)})`;
+  }
+  const t = (ratio - 0.5) * 2;
+  return `rgb(${lerp(Y[0],R[0],t)},${lerp(Y[1],R[1],t)},${lerp(Y[2],R[2],t)})`;
+}
+function tdPctScale(v, mn, mx) {
+  if (v == null || mn == null || mx == null || mx === mn) return tdPct(v);
+  const ratio = Math.max(0, Math.min(1, (v - mn) / (mx - mn)));
+  const bg = colorScale(ratio);
+  const cls = v < 0 ? " class=neg" : "";
+  return `<td${cls} style="background:${bg}">${fmtPct(v)}</td>`;
+}
+function tdParen2(v) {
+  if (v == null) return "<td></td>";
+  const cls = v < 0 ? " class=neg" : "";
+  return `<td${cls}>${fmtParen2(v)}</td>`;
+}
+function tdAcct(v) {
+  if (v == null) return "<td></td>";
+  const cls = v < 0 ? " class=neg" : "";
+  return `<td${cls}>${fmtAccountingInt(v)}</td>`;
+}
+// 同 tdPctScale 的 logic, 對「總市值(兆元)」 (用 fmtParen2 格式) cell 套色階
+function tdParen2Scale(v, mn, mx) {
+  if (v == null || mn == null || mx == null || mx === mn) return tdParen2(v);
+  const ratio = Math.max(0, Math.min(1, (v - mn) / (mx - mn)));
+  const bg = colorScale(ratio);
+  const cls = v < 0 ? " class=neg" : "";
+  return `<td${cls} style="background:${bg}">${fmtParen2(v)}</td>`;
+}
+
+function syncStickyOffset() {
+  // Measure R1 height after render so R2 sticks exactly under it (no gap, no overlap).
+  const r1 = document.querySelector("table.zonghe thead tr:nth-child(1) th");
+  if (!r1) return;
+  const h = r1.getBoundingClientRect().height;
+  document.documentElement.style.setProperty("--r1-height", h + "px");
+}
+
+async function load() {
+  const r = await fetch(COMP_URL + _bust()).then(r => r.json());
+  // header info: 資料日期 + 上次 refresh (帶過來自 API)
+  const info = document.getElementById("refreshInfo");
+  if (info) {
+    const dd = r.last_data_date || "—";
+    // Codex 2026-05-07 16:40:44 +08:00: show summary freshness separately.
+    const sd = r.last_summary_date || "—";
+    const lr = r.last_refresh;
+    const lrTxt = lr ? `${lr.ts.replace("T"," ")} ${lr.ok ? "✓" : "✗"}` : "—";
+    info.textContent = `資料日期 ${dd} · 綜合整理 ${sd} · 上次 refresh ${lrTxt}`;
+  }
+  const rows = r.rows || [];
+  if (!rows.length) {
+    document.getElementById("zhBody").innerHTML =
+      `<tr><td colspan="18" style="text-align:center;color:var(--muted);padding:30px">(無資料)</td></tr>`;
+    return;
+  }
+  // Reverse (newest first) so latest 日期在最上
+  rows.reverse();
+  // Pre-compute min/max for color-scaled cols. 各 col 獨立色階 (per user)
+  const twsePcts = rows.map(r => r.twse_margin_pct).filter(v => v != null);
+  const tpexPcts = rows.map(r => r.tpex_margin_pct).filter(v => v != null);
+  const twseMin = Math.min(...twsePcts), twseMax = Math.max(...twsePcts);
+  const tpexMin = Math.min(...tpexPcts), tpexMax = Math.max(...tpexPcts);
+  const html = rows.map(r => `
+    <tr${r.is_settlement ? ' class="settlement"' : ''}>
+      <td class="clickable" style="text-align:left" data-vd="${r.view_date || ''}">${fmtMD(r.view_date)}</td>
+      <td style="text-align:left">${fmtMD(r.date)}</td>
+      ${tdTwii(r.twii_close)}
+      ${tdPlainInt(r.tx_close)}
+      ${tdTwii(r.tpex_index_close)}
+      ${tdParenInt(r.op_legal_net)}
+      ${tdParenInt(r.fut_pre_open_net)}
+      ${tdParenInt(r.op_call_net)}
+      ${tdParenInt(r.op_put_net)}
+      ${tdParenInt(r.op_cp_net)}
+      ${tdParenInt(r.op_pre_open_cp_net)}
+      ${tdParenInt(r.stock_fut_legal_net)}
+      ${tdPctScale(r.twse_margin_pct, twseMin, twseMax)}
+      ${tdPctScale(r.tpex_margin_pct, tpexMin, tpexMax)}
+      ${tdAcct(r.twse_margin_amt_oku)}
+      ${tdAcct(r.tpex_margin_amt_oku)}
+      ${tdParen2(r.twse_mkt_cap_chao)}
+      ${tdParen2(r.tpex_mkt_cap_chao)}
+    </tr>
+  `).join("");
+  document.getElementById("zhBody").innerHTML = html;
+  requestAnimationFrame(syncStickyOffset);
+  // Wire click handler 到「For 開盤前看」 cell — 跳主表 view_date=該日
+  document.querySelectorAll("td.clickable").forEach(td => {
+    td.addEventListener("click", () => {
+      const vd = td.dataset.vd;
+      if (vd) window.location.href = `/?view_date=${vd}`;
+    });
+  });
+}
+
+window.addEventListener("resize", syncStickyOffset);
+load();
+
+// 白話 refresh status — 跟主表 app.js identical
+function formatRefreshStatus(r) {
+  const fmtDate = iso => {
+    if (!iso) return "";
+    const [y,m,d] = iso.split("-").map(Number);
+    return `${y}/${m}/${d}`;
+  };
+  if (r.mode === "catch_up") {
+    const results = r.results || [];
+    if (results.length === 1) {
+      return `${fmtDate(results[0].target_date)} ✓`;
+    }
+    return `${results.length} 天 ✓`;
+  }
+  if (r.mode === "no_op") return r.message || "資料已是最新";
+  if (r.ok) return `${fmtDate(r.target_date)} 已抓最新 ✓`;
+  return `失敗: ${(r.errors || []).join("; ") || "未知"}`;
+}
+
+// Refresh button — same logic as 主表's doRefresh
+async function doRefresh() {
+  const btn = document.getElementById("btnRefresh");
+  const info = document.getElementById("refreshInfo");
+  btn.disabled = true;
+  // 靜態模式：無後端，重新載入即可（資料由雲端 cron 定時更新）。
+  if (STATIC) {
+    try { await load(); } finally { btn.disabled = false; }
+    return;
+  }
+  // Spinner 取代 「資料日期 X · 上次 refresh Y」 顯示
+  const savedInfo = info.textContent;
+  info.innerHTML = '<span class="spinner"></span>抓取資料中…';
+  try {
+    await fetch("/api/refresh", { method: "POST" }).then(r => r.json());
+    // 重 load 自動把 info 從 API payload 設為新 timestamp
+    await load();
+  } catch (e) {
+    info.textContent = `失敗: ${e.message}`;
+    // restore previous info after 3 sec
+    setTimeout(() => { info.textContent = savedInfo; }, 3000);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("btnRefresh").addEventListener("click", doRefresh);
+// 靜態模式：按鈕語意改為「重新整理」。
+if (STATIC) {
+  const _b = document.getElementById("btnRefresh");
+  if (_b) _b.textContent = "🔄 重新整理";
+}
+</script>
+</body>
+</html>
