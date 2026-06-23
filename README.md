@@ -13,8 +13,9 @@
 | 走勢圖 | [/chart.html](https://dannynycc.github.io/HuiGe-OP-Stats/chart.html) | 融資/法人部位 vs 指數的走勢圖 |
 
 - **每天自動更新 3 次**（台北 15:00 / 21:00 / 07:00），打開就是最新，不用按任何東西。
-- 想手動立刻更新：GitHub repo → **Actions** → `update-data` → **Run workflow**。
 - 主表左上角可選日期，回看任何一天「開盤前」的部位。
+- 〔維護者專用〕想手動立刻更新：repo → **Actions** → `update-data` → **Run workflow**。
+  只有對 repo 有寫入權限的人（= 你）能觸發；一般訪客看得到紀錄但**按不了**。
 
 ---
 
