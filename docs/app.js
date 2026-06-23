@@ -304,10 +304,26 @@ $("#viewDate").addEventListener("change", () => {
 });
 $("#btnRefresh").addEventListener("click", doRefresh);
 
-// 靜態模式：按鈕語意從「抓最新」改成「重新整理」（抓取由雲端 cron 負責）。
+// 靜態模式：沒有後端可抓，把「Refresh」按鈕改成顯示「下次自動更新時間」。
+// cron 在台北 07:00 / 15:00 / 21:00 跑（見 .github/workflows/update.yml）。
+function nextUpdateText() {
+  const slots = [7, 15, 21];                       // 台北時段（小時）
+  const tpe = new Date(Date.now() + 8 * 3600 * 1000); // 位移成台北，再讀 UTC 時鐘
+  const h = tpe.getUTCHours();
+  let next = slots.find(s => s > h);
+  let day = "今天";
+  if (next === undefined) { next = slots[0]; day = "明天"; }
+  return `下次自動更新 ${day} ${String(next).padStart(2, "0")}:00`;
+}
 if (STATIC) {
   const _b = $("#btnRefresh");
-  if (_b) _b.textContent = "🔄 重新整理";
+  if (_b) {
+    _b.textContent = "🕒 " + nextUpdateText();
+    _b.disabled = true;                            // 不可點（資料由雲端 cron 更新）
+    _b.style.cursor = "default";
+    _b.style.opacity = "1";
+    _b.title = "每日自動更新：台北 07:00 / 15:00 / 21:00";
+  }
 }
 
 // Honor ?view_date= in the URL on first load

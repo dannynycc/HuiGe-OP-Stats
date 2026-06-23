@@ -453,10 +453,25 @@ async function doRefresh() {
   }
 }
 document.getElementById("btnRefresh").addEventListener("click", doRefresh);
-// 靜態模式：按鈕語意改為「重新整理」。
+// 靜態模式：把「Refresh」按鈕改成顯示「下次自動更新時間」（資料由雲端 cron 更新）。
+function nextUpdateText() {
+  const slots = [7, 15, 21];
+  const tpe = new Date(Date.now() + 8 * 3600 * 1000);
+  const h = tpe.getUTCHours();
+  let next = slots.find(s => s > h);
+  let day = "今天";
+  if (next === undefined) { next = slots[0]; day = "明天"; }
+  return `下次自動更新 ${day} ${String(next).padStart(2, "0")}:00`;
+}
 if (STATIC) {
   const _b = document.getElementById("btnRefresh");
-  if (_b) _b.textContent = "🔄 重新整理";
+  if (_b) {
+    _b.textContent = "🕒 " + nextUpdateText();
+    _b.disabled = true;
+    _b.style.cursor = "default";
+    _b.style.opacity = "1";
+    _b.title = "每日自動更新：台北 07:00 / 15:00 / 21:00";
+  }
 }
 </script>
 </body>
