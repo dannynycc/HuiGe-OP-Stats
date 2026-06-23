@@ -1,0 +1,24 @@
+name: connectivity-test
+
+# 丟棄式測試：純粹驗證 GitHub runner（美國/Azure 機房 IP）
+# 抓不抓得到 TAIFEX / TWSE / TPEx / FinMind。
+# refresh() 會把每個失敗的 endpoint 寫進 errors 陣列。
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install deps（requirements 缺 pandas，這裡補上）
+        run: pip install -r requirements.txt pandas
+
+      - name: Probe — 在 runner 上跑真正的 scraper
+        run: |
+          python -c "from app.refresh import refresh; import json; print(json.dumps(refresh(), ensure_ascii=False, indent=2))"
